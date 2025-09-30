@@ -108,7 +108,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply trigger to performance_analytics
 CREATE TRIGGER update_performance_analytics_updated_at
     BEFORE UPDATE ON performance_analytics
     FOR EACH ROW
