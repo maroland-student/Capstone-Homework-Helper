@@ -10,7 +10,7 @@ import {
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
-    // manages state for email and password
+    // manages state for email and password.
     // initializes email and password to empty strings
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
