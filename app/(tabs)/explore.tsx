@@ -14,7 +14,27 @@ import CameraCapture from "@/components/CameraCapture";
 
 export default function TabTwoScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  
+  // multiple photo empty array 
+  const [photos, setPhotos] = useState<string []>([]);
+  const addPhoto = (uri: string) => setPhotos(prev => prev.concat(uri));
+
+  function createPhotoArray(uri: string, idx: number) {
+
+    // temp for React until we actually get the image ID's
+    const key = `${uri}-${idx}`;
+    return (
+      <View key={key} 
+        style = {styles.gridItem}>
+          <Image source= {{ uri }}
+            style={styles.preview}
+            contentFit ="cover" />
+        </View>
+    );
+  }
+
+
 
   return (
     <ParallaxScrollView
@@ -36,21 +56,20 @@ export default function TabTwoScreen() {
       {/* Your existing content... */}
 
       <Collapsible title="Camera demo">
-        {photoUri ? (
-          <View style={{ gap: 12, marginTop: 12 }}>
-            <Image
-              source={{ uri: photoUri }}
-              style={{ width: "100%", height: 240, borderRadius: 12 }}
-              contentFit="cover"
-            />
-            <Button title="Retake" onPress={() => setPhotoUri(null)} />
-          </View>
-        ) : (
-          <View style={{ marginTop: 12 }}>
-            <Button title="Open camera" onPress={() => setCameraOpen(true)} />
+        <View style={{ margin: 24, }}>
+          <Button title="Add Photo" onPress={() => setCameraOpen(true)} />
+        </View>
+
+      
+        {photos.length > 0 && (
+
+          <View style={styles.grid}>
+
+            {photos.map(createPhotoArray)}
           </View>
         )}
-      </Collapsible>
+
+        </Collapsible>
 
       {/* Full-screen camera modal */}
       <Modal
@@ -63,7 +82,9 @@ export default function TabTwoScreen() {
           <CameraCapture
             allowSave
             onCapture={(uri) => {
-              setPhotoUri(uri);      // <- use this URI anywhere (upload/process/etc.)
+
+
+              addPhoto(uri);      // <- use this URI anywhere (upload/process/etc.)
               setCameraOpen(false);
             }}
           />
@@ -81,4 +102,22 @@ export default function TabTwoScreen() {
 const styles = StyleSheet.create({
   headerImage: { color: '#808080', bottom: -90, left: -35, position: 'absolute' },
   titleContainer: { flexDirection: 'row', gap: 8 },
+
+
+grid: {
+  flexDirection: "row",
+  rowGap: 12,
+},
+
+gridItem: {
+  width: "50%",
+},
+
+preview: {
+  width: "100%",
+  aspectRatio: 1,
+}
+
+
+
 });
