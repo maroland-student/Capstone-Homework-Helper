@@ -72,7 +72,7 @@ export default function TabTwoScreen() {
         {photos.length > 0 && (
           <View style= {{ marginTop: 12, marginHorizontal: 24}}>
 
-            <Button title= "Clear Photos"
+            <Button title= "Clear Photo(s)"
                     onPress={() => {
 
                       // array clear with reset for additional grid map**
