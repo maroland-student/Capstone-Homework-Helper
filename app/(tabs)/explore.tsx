@@ -57,15 +57,28 @@ export default function TabTwoScreen() {
 
       <Collapsible title="Camera demo">
         <View style={{ margin: 24, }}>
-          <Button title="Add Photo" onPress={() => setCameraOpen(true)} />
+          <Button title="Add Photo(s)" onPress={() => setCameraOpen(true)} />
         </View>
 
       
         {photos.length > 0 && (
 
           <View style={styles.grid}>
-
             {photos.map(createPhotoArray)}
+          </View>
+        )}
+
+
+        {photos.length > 0 && (
+          <View style= {{ marginTop: 12, marginHorizontal: 24}}>
+
+            <Button title= "Clear Photos"
+                    onPress={() => {
+
+                      // array clear with reset for additional grid map**
+                      setPhotos([]);
+                    }}
+                    />
           </View>
         )}
 
