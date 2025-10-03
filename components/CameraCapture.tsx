@@ -98,7 +98,7 @@ export default function CameraCapture({
             <Text style={styles.overlayTitle}>
               {stage === "uploading" ? "Uploading Your Photo..." : "Processing Your Photo..."}
             </Text>
-            <Text style={styles.overlaySub}>Just A Moment Please...</Text>
+            <Text style={styles.overlaySub}>Just A Moment Please</Text>
           </View>
         </View>
       </Modal>
@@ -108,15 +108,15 @@ export default function CameraCapture({
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, backgroundColor: "#00000" 
+    flex: 2, backgroundColor: "#00000" 
   },
   
   camera: { 
-    flex: 1, justifyContent: "flex-end" 
+    flex: 2, justifyContent: "flex-end" 
   },
-  
+
   controls: { 
-    padding: 16, backgroundColor: "rgba(0,0,0,0.25)" 
+    padding: 18, backgroundColor: "rgba(0,0,0,0.75)" 
   },
 
   center: { 
@@ -138,21 +138,21 @@ const styles = StyleSheet.create({
 
   overlayBoundCard: {
     width: "100%",
-    maxWidth: 350,
+    maxWidth: 450,
     backgroundColor: "darkgray",
-    borderRadius: 14, 
-    padding: 20,
+    borderRadius: 12, 
+    padding: 12,
     alignItems: "center",
   },
 
   overlayTitle: {
     marginTop: 12,
-    fontSize: 24,
-    fontWeight: "600"
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   overlaySub: {
-    marginTop: 8, 
+    marginTop: 10, 
     fontSize: 12,
     opacity: 0.75
   },
