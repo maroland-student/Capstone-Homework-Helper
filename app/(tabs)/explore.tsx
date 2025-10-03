@@ -15,7 +15,7 @@ import CameraCapture from "@/components/CameraCapture";
 export default function TabTwoScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
 
-  
+
   // multiple photo empty array 
   const [photos, setPhotos] = useState<string []>([]);
   const addPhoto = (uri: string) => setPhotos(prev => prev.concat(uri));
@@ -106,11 +106,17 @@ const styles = StyleSheet.create({
 
 grid: {
   flexDirection: "row",
-  rowGap: 12,
+  flexWrap: "wrap",
+  rowGap: 16,
+  justifyContent: "space-between",
+
+  
 },
 
 gridItem: {
   width: "50%",
+  overflow: "hidden",
+  paddingHorizontal: 12 / 2
 },
 
 preview: {
