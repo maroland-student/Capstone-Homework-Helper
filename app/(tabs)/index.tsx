@@ -7,6 +7,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 
+import { OpenAIHandler } from '@/components/OpenAIHandler';
+
+const ai = new OpenAIHandler();
+
 export default function HomeScreen() {
   return (
     <ParallaxScrollView
