@@ -1,8 +1,13 @@
+// components/camera-capture.tsx
+
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as MediaLibrary from "expo-media-library";
 import type { PermissionStatus } from "expo-modules-core";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Button, StyleSheet, View } from "react-native";
+
+import { CameraUtility } from "@/utilities/cameraUtility";
+import { OpenAIHandler } from "@/utilities/openAiUtility";
 
 export default function CameraCapture({
   onCapture,
@@ -18,6 +23,7 @@ export default function CameraCapture({
 
   useEffect(() => {
     (async () => {
+      // Request camera permissions if not already granted
       if (!permission?.granted) {
         await requestPermission();
       }
@@ -55,13 +61,27 @@ export default function CameraCapture({
       if (allowSave && libPerm === "granted") {
         await MediaLibrary.saveToLibraryAsync(photo.uri);
       }
+      CameraUtility.setCaptureUri(photo.uri);
       onCapture(photo.uri);
     } catch (e: any) {
       Alert.alert("Capture failed", e?.message ?? "Unknown error");
     } finally {
       setBusy(false);
+      getProcessing().then(console.log);
     }
   };
+
+  const getProcessing = async () => {
+    const image = await CameraUtility.getCaptureBytes();
+    if (!image) {
+      console.log("No image captured");
+      return;
+    }
+    await OpenAIHandler.generateFromImage(
+      "You are analyzing a photo of algebra one homework. What problems are shown in the image? Only give factual data, you are not to infer, estimate or try to solve the problem(s). If you do not see algebra one homework, simply respond with \"Invalid\"."
+      , image
+    ).then(console.log);
+  }
 
   return (
     <View style={s.container}>
