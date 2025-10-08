@@ -105,6 +105,7 @@ export default function SettingsScreen() {
           subtitle="Push notifications and alerts"
           rightElement={
             <Switch
+              testID="notifications-switch"
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
               trackColor={{ false: '#767577', true: '#81b0ff' }}
@@ -118,6 +119,7 @@ export default function SettingsScreen() {
           subtitle="Switch between light and dark themes"
           rightElement={
             <Switch
+              testID="dark-mode-switch"
               value={darkModeEnabled}
               onValueChange={setDarkModeEnabled}
               trackColor={{ false: '#767577', true: '#81b0ff' }}
@@ -139,6 +141,7 @@ export default function SettingsScreen() {
           subtitle="Allow app to access your location"
           rightElement={
             <Switch
+              testID="location-switch"
               value={locationEnabled}
               onValueChange={setLocationEnabled}
               trackColor={{ false: '#767577', true: '#81b0ff' }}
