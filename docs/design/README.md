@@ -3,3 +3,5 @@
 ![Scan page layout design](Scan-page.png)
 
 ![Ask AI page Layout design](Ask-AI.png)
+
+![Topics page Layout design](Topics.png)
