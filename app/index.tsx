@@ -8,6 +8,9 @@ import {
   Alert 
 } from 'react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function LoginScreen() {
     // manages state for email and password.
@@ -15,13 +18,33 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // placeholder validation - always succeeds for now
-    if (email.trim() && password.trim()) {
-      // navigate to explore tab
+  const handleLogin = async () => {
+    try {
+      if (email.trim() && password.trim()) {
+        await AsyncStorage.setItem('userType', 'registered');
+        router.push('/(tabs)/explore');
+      } else {
+        Alert.alert('Error', 'Please enter both email and password');
+      }
+    } catch (e) {
+      console.warn('Login failed:', e);
+      Alert.alert('Error', 'Failed to sign in.');
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      const guestSessionId = uuidv4();
+      await AsyncStorage.setItem('userType', 'guest');
+      await AsyncStorage.setItem('guestSessionId', guestSessionId);
+
+      await AsyncStorage.setItem('guestSessionCreated', Date.now().toString());
+
+      Alert.alert('Guest Mode', 'You are now using the app as a guest.');
       router.push('/(tabs)/explore');
-    } else {
-      Alert.alert('Error', 'Please enter both email and password');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start guest session.');
+      console.error('Guest login error:', error);
     }
   };
 
@@ -50,6 +73,9 @@ export default function LoginScreen() {
         
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Sign In</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.guestButton} onPress={handleGuestLogin}>
+          <Text style={styles.guestText}>Continue as Guest</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -97,5 +123,18 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  guestButton: {
+    marginTop: 15,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  guestText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
