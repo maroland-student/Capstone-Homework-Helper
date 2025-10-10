@@ -1,6 +1,10 @@
 import pytesseract
 from PIL import Image
 
+
+pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
+
+
 img_file = "data/book.jpg"
 
 
