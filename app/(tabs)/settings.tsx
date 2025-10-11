@@ -1,3 +1,5 @@
+import { router } from 'expo-router';
+
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -170,7 +172,10 @@ export default function SettingsScreen() {
         // these can open webviews or external links to the support pages
           title="Help & FAQ"
           subtitle="Get help and answers"
-          onPress={() => console.log('Help & FAQ pressed')}
+
+
+          // routed instead of just console logging for now
+          onPress={() => router.push('/faq')}
         />
         <SettingsItem
         // this can link to an email support or contact form later
