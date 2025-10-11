@@ -181,7 +181,8 @@ export default function SettingsScreen() {
         // this can link to an email support or contact form later
           title="Contact Us"
           subtitle="Get in touch with support"
-          onPress={() => console.log('Contact Us pressed')}
+          onPress={() => router.push('/contact')}
+          
         />
         <SettingsItem
         // this can link to a bug report form or email later
