@@ -29,6 +29,15 @@ export default function RootLayout() {
             title: 'Main App'
           }} 
         />
+
+
+
+        <Stack.Screen
+          name="bugreport"
+          options={{
+            title: 'Report a Bug'
+          }}
+        />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />

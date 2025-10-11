@@ -1,6 +1,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -182,7 +183,7 @@ export default function SettingsScreen() {
         // this can link to a bug report form or email later
           title="Report a Bug"
           subtitle="Report issues or bugs"
-          onPress={() => console.log('Report a Bug pressed')}
+          onPress={() => router.push('/bugreport')}
         />
 
         {}
