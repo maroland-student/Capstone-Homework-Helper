@@ -1,56 +1,31 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert 
+import { useState } from 'react';
+import {
+  StyleSheet,
+  View
 } from 'react-native';
-import { router } from 'expo-router';
+import LoginForm from '../components/LoginForm';
+import SignupForm from '../components/SignupForm';
 
 export default function LoginScreen() {
-    // manages state for email and password.
-    // initializes email and password to empty strings
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [showSignup, setShowSignup] = useState(false);
 
-  const handleLogin = () => {
-    // placeholder validation - always succeeds for now
-    if (email.trim() && password.trim()) {
-      // navigate to explore tab
-      router.push('/(tabs)/explore');
-    } else {
-      Alert.alert('Error', 'Please enter both email and password');
-    }
+  const handleSignupPress = () => {
+    setShowSignup(true);
+  };
+
+  const handleBackToLogin = () => {
+    setShowSignup(false);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+      {showSignup ? (
+        <SignupForm onBackToLogin={handleBackToLogin} />
+      ) : (
+        <LoginForm onSignupPress={handleSignupPress} />
+      )}
       
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Sign In</Text>
-        </TouchableOpacity>
+      <View style={styles.testContainer}>
       </View>
     </View>
   );
@@ -97,5 +72,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  testContainer: {
+    marginTop: 20,
+    width: '100%',
+    maxWidth: 400,
   },
 });
