@@ -1,14 +1,13 @@
 import dotenv from 'dotenv'
-import Fastify from 'fastify'
 import { createServer } from 'http'
 
 import ApiAuth from './routes/api/auth'
 import Health from './routes/health'
+import Log, { LogLevel } from './utilities/toggle_logs'
 
 dotenv.config({ path: '.env' })
 
 const PORT = process.env.PORT || 3000
-const app = Fastify()
 
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
@@ -126,7 +125,7 @@ const server = createServer(async (req, res) => {
   }
 
   // Overflow catch requests that don't match any route
-  console.log(`404 Not Found: ${req.method} ${req.url}`)
+  Log.log(`404 Not Found: ${req.method} ${req.url}`, LogLevel.WARN)
   res.writeHead(404, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify({ error: 'Not found' }))
 })
@@ -135,6 +134,11 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`Better Auth configured`)
   console.log(`Auth endpoints available at http://localhost:${PORT}/api/auth`)
+  
+  Log.log('Testing', LogLevel.DEBUG)
+  Log.log('Testing', LogLevel.INFO)
+  Log.log('Testing', LogLevel.WARN)
+  Log.log('Testing', LogLevel.CRITICAL)
 })
 
 export default server

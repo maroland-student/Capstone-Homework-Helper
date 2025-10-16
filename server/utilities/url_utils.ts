@@ -61,4 +61,14 @@ export function notFound(res: ServerResponse, errorMessage?: string): void {
   sendJson(res, 404, { error: errorMessage ?? 'Not Found' })
 }
 
+export async function simulateDelay(res: ServerResponse, milliseconds: number, status: number, data: string){
+    if(milliseconds < 0)
+        milliseconds = 1;
+
+    console.log("Simulating delay of " + milliseconds + "ms");
+    await new Promise(resolve => setTimeout(resolve, milliseconds));
+    
+    sendText(res, status, data);
+}
+
 export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound }
