@@ -14,9 +14,8 @@ export function handles(req: IncomingMessage): boolean {
 export async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     console.log("Handling /api/openai request...");
     try {
-        const queryParams = UrlUtils.getQuery(req);
-
-        
+        UrlUtils.simulateDelay(res, 500, 200, 'Mocked OpenAI response')
+        return
     } catch (error: any) {
         let appError;
 

@@ -2,12 +2,19 @@ import dotenv from 'dotenv'
 import { createServer } from 'http'
 
 import ApiAuth from './routes/api/auth'
+import ApiOpenAi from './routes/api/openAi'
 import Health from './routes/health'
 import Log, { LogLevel } from './utilities/toggle_logs'
 
 dotenv.config({ path: '.env' })
 
 const PORT = process.env.PORT || 3000
+
+const ROUTES = [
+  ApiAuth,
+  Health,
+  ApiOpenAi
+]
 
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
@@ -120,8 +127,12 @@ const server = createServer(async (req, res) => {
   // }
 
   // AI routes
-  if(req.url?.startsWith('/api/ai')) {
-
+  for (const route of ROUTES) {
+    if(route.handles(req)){
+      Log.log(`Routing ${req.method} ${req.url} to handler`, LogLevel.INFO)
+      await route.handle(req, res)
+      return
+    }
   }
 
   // Overflow catch requests that don't match any route
@@ -134,11 +145,6 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`Better Auth configured`)
   console.log(`Auth endpoints available at http://localhost:${PORT}/api/auth`)
-  
-  Log.log('Testing', LogLevel.DEBUG)
-  Log.log('Testing', LogLevel.INFO)
-  Log.log('Testing', LogLevel.WARN)
-  Log.log('Testing', LogLevel.CRITICAL)
 })
 
 export default server

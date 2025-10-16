@@ -1,4 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'http';
+import Log, { LogLevel } from './toggle_logs';
 
 export function getUrl(req: IncomingMessage) {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
@@ -31,8 +32,8 @@ export async function getBody(req: IncomingMessage) {
     const chunks: Buffer[] = []
     for await (const chunk of req) chunks.push(chunk)
     const raw = Buffer.concat(chunks).toString()
-    if (!raw) return null
-
+    if (!raw)
+        return null
     try {
         return JSON.parse(raw)
     } catch {
@@ -65,10 +66,13 @@ export async function simulateDelay(res: ServerResponse, milliseconds: number, s
     if(milliseconds < 0)
         milliseconds = 1;
 
-    console.log("Simulating delay of " + milliseconds + "ms");
+    Log.log("Simulating delay of " + milliseconds + "ms", LogLevel.DEBUG);
+
     await new Promise(resolve => setTimeout(resolve, milliseconds));
-    
+
+    Log.log("Simulating delay finished", LogLevel.DEBUG);
+
     sendText(res, status, data);
 }
 
-export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound }
+export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound, simulateDelay}
