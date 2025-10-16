@@ -1,6 +1,8 @@
 import { ErrorType, parseDatabaseError, parseNetworkError } from '@/lib/error-utils';
 import { IncomingMessage, ServerResponse } from 'http';
 
+import UrlUtils from '../../utilities/url_utils';
+
 const endpoint = '/api/openai';
 
 export function handles(req: IncomingMessage): boolean {
@@ -12,6 +14,8 @@ export function handles(req: IncomingMessage): boolean {
 export async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     console.log("Handling /api/openai request...");
     try {
+        const queryParams = UrlUtils.getQuery(req);
+
         
     } catch (error: any) {
         let appError;

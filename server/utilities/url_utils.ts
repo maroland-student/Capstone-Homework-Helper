@@ -60,3 +60,5 @@ export function notFound(res: ServerResponse, errorMessage: string): void;
 export function notFound(res: ServerResponse, errorMessage?: string): void {
   sendJson(res, 404, { error: errorMessage ?? 'Not Found' })
 }
+
+export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound }
