@@ -1,6 +1,7 @@
 import { signUp } from '@/lib/auth-client';
 import { useState } from 'react';
 
+import { createError, ErrorType, parseAuthError, parseNetworkError } from '@/lib/error-utils';
 import {
   ActivityIndicator,
   Alert,
@@ -36,23 +37,56 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
-    // validation
-    if (!formData.email || !formData.password || !formData.name) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    const missingFields = [];
+    if (!formData.name.trim()) missingFields.push('Full Name');
+    if (!formData.email.trim()) missingFields.push('Email');
+    if (!formData.password.trim()) missingFields.push('Password');
+
+    if (missingFields.length > 0) {
+      const error = createError(
+        ErrorType.REQUIRED_FIELD,
+        `Missing required fields: ${missingFields.join(', ')}`,
+        'Required forms must be filled out'
+      );
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${error.userMessage}`);
+      } else {
+        Alert.alert('Error', error.userMessage);
+      }
       return;
     }
 
     if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      const error = createError(
+        ErrorType.PASSWORD_TOO_SHORT,
+        'Password must be at least 6 characters long',
+        'Password must be at least 6 characters long'
+      );
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${error.userMessage}`);
+      } else {
+        Alert.alert('Error', error.userMessage);
+      }
       return;
     }
 
-    // rate limiting
     const now = Date.now();
     const timeSinceLastAttempt = now - lastSignupAttempt;
     if (timeSinceLastAttempt < 4000) {
       const remainingTime = Math.ceil((4000 - timeSinceLastAttempt) / 1000);
-      Alert.alert('Please wait', `Please wait ${remainingTime} more seconds before trying again.`);
+      const error = createError(
+        ErrorType.INTERNAL_ERROR,
+        `Rate limit: Please wait ${remainingTime} more seconds`,
+        `Please wait ${remainingTime} more seconds before trying again.`
+      );
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Please wait: ${error.userMessage}`);
+      } else {
+        Alert.alert('Please wait', error.userMessage);
+      }
       return;
     }
 
@@ -71,9 +105,7 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
       
       if (data) {
         console.log('Signup successful:', data);
-        //success message
         if (Platform.OS === 'web') {
-          // for web, use window.alert as fallback
           window.alert('Account Created!\n\nYour account has been created successfully! You can now sign in.');
           if (onBackToLogin) {
             onBackToLogin();
@@ -92,14 +124,15 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
           );
         }
       } else if (error) {
-        console.error('Signup error:', error);
+        const appError = parseAuthError(error);
+        console.error(`[${appError.type}] Signup error:`, appError.message);
+        
         if (Platform.OS === 'web') {
-          window.alert('Error: ' + (error.message || 'Failed to create account. Please try again.'));
+          window.alert(`Error: ${appError.userMessage}`);
         } else {
-          Alert.alert('Error', error.message || 'Failed to create account. Please try again.');
+          Alert.alert('Error', appError.userMessage);
         }
       } else {
-        // case where neither data nor error is returned
         console.log('No data or error returned from signup');
         if (Platform.OS === 'web') {
           window.alert('Account Created!\n\nYour account has been created successfully! You can now sign in.');
@@ -121,8 +154,14 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
         }
       }
     } catch (error: any) {
-      console.error('Signup error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      const appError = parseNetworkError(error);
+      console.error(`[${appError.type}] Signup error:`, appError.message);
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${appError.userMessage}`);
+      } else {
+        Alert.alert('Error', appError.userMessage);
+      }
     } finally {
       setLoading(false);
     }

@@ -1,18 +1,15 @@
 import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { auth } from '../lib/auth'
+import { ErrorType, parseDatabaseError, parseNetworkError } from '../lib/error-utils'
 
-// load environment variables
 dotenv.config({ path: '.env' })
 
 const PORT = process.env.PORT || 3000
 
-// create HTTP server for Better Auth
 const server = createServer(async (req, res) => {
-  // get the origin from the request
   const origin = req.headers.origin
   
-  // set CORS headers for Expo - handle credentials properly
   if (origin && (
     origin.includes('localhost') || 
     origin.includes('127.0.0.1') || 
@@ -32,14 +29,12 @@ const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With, Accept, Origin')
   res.setHeader('Access-Control-Allow-Credentials', 'true')
 
-  // preflight requests
   if (req.method === 'OPTIONS') {
     res.writeHead(200)
     res.end()
     return
   }
 
-  // check endpoint
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ 
@@ -50,13 +45,10 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // handle Better Auth routes
   if (req.url?.startsWith('/api/auth')) {
     try {
-      // convert Node.js request to Web API Request
       const url = new URL(req.url, `http://${req.headers.host}`)
       
-      // read body for POST/PUT requests
       let body: string | undefined
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         const chunks: Buffer[] = []
@@ -73,30 +65,53 @@ const server = createServer(async (req, res) => {
       
       const response = await auth.handler(webRequest)
       
-      // set response headers
       response.headers.forEach((value, key) => {
         res.setHeader(key, value)
       })
       
       res.writeHead(response.status)
       res.end(await response.text())
-    } catch (error) {
-      console.error('Better Auth handler error:', error)
+    } catch (error: any) {
+      let appError;
+      
+      if (error?.message?.includes('ECONNRESET') || 
+          error?.message?.includes('connection') ||
+          error?.code === 'ECONNRESET') {
+        appError = parseDatabaseError(error);
+      } else if (error?.message?.includes('timeout') || 
+                 error?.message?.includes('TIMEOUT')) {
+        appError = parseNetworkError(error);
+      } else {
+        appError = {
+          type: ErrorType.INTERNAL_ERROR,
+          message: error?.message || 'Unknown error',
+          userMessage: 'Internal server error',
+          code: error?.code || 'UNKNOWN',
+          details: { originalError: error }
+        };
+      }
+      
+      console.error(`[${appError.type}] Better Auth handler error:`, {
+        message: appError.message,
+        code: appError.code,
+        details: appError.details,
+        timestamp: new Date().toISOString()
+      });
+      
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ 
         error: 'Internal server error',
-        message: 'Something went wrong'
+        message: 'Something went wrong',
+        code: appError.code
       }))
     }
     return
   }
 
-  // 404 for other routes
   res.writeHead(404, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify({ error: 'Not found' }))
 })
 
-// start server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`Better Auth configured`)

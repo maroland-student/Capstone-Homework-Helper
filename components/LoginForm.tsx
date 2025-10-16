@@ -1,4 +1,5 @@
 import { signIn } from '@/lib/auth-client';
+import { createError, ErrorType, parseAuthError, parseNetworkError } from '@/lib/error-utils';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -29,12 +30,17 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    // validation
     if (!formData.email || !formData.password) {
+      const error = createError(
+        ErrorType.REQUIRED_FIELD,
+        'Email and password are required',
+        'Please enter both email and password'
+      );
+      
       if (Platform.OS === 'web') {
-        window.alert('Error: Please enter both email and password');
+        window.alert(`Error: ${error.userMessage}`);
       } else {
-        Alert.alert('Error', 'Please enter both email and password');
+        Alert.alert('Error', error.userMessage);
       }
       return;
     }
@@ -55,27 +61,36 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         // navigation will be handled by the parent component
         router.replace('/(tabs)/explore');
       } else if (error) {
-        console.error('Login error:', error);
+        const appError = parseAuthError(error);
+        console.error(`[${appError.type}] Login error:`, appError.message);
+        
         if (Platform.OS === 'web') {
-          window.alert('Error: ' + (error.message || 'Invalid email or password'));
+          window.alert(`Error: ${appError.userMessage}`);
         } else {
-          Alert.alert('Error', error.message || 'Invalid email or password');
+          Alert.alert('Error', appError.userMessage);
         }
       } else {
-        // Handle case where neither data nor error is returned
         console.log('No data or error returned from login');
+        const error = createError(
+          ErrorType.INVALID_CREDENTIALS,
+          'No response from server',
+          'Invalid email or password'
+        );
+        
         if (Platform.OS === 'web') {
-          window.alert('Error: Invalid email or password');
+          window.alert(`Error: ${error.userMessage}`);
         } else {
-          Alert.alert('Error', 'Invalid email or password');
+          Alert.alert('Error', error.userMessage);
         }
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      const appError = parseNetworkError(error);
+      console.error(`[${appError.type}] Login error:`, appError.message);
+      
       if (Platform.OS === 'web') {
-        window.alert('Error: Something went wrong. Please try again.');
+        window.alert(`Error: ${appError.userMessage}`);
       } else {
-        Alert.alert('Error', 'Something went wrong. Please try again.');
+        Alert.alert('Error', appError.userMessage);
       }
     } finally {
       setLoading(false);
