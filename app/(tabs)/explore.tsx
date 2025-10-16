@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button, Modal, StyleSheet, View } from "react-native";
 
 import ParallaxScrollView from "@/components/parallax-scroll-view";
@@ -32,8 +32,6 @@ export default function TabTwoScreen() {
           Explore
         </ThemedText>
       </ThemedView>
-
-      {/* Your existing content... */}
 
       <Collapsible title="Camera demo">
         {photoUri ? (
