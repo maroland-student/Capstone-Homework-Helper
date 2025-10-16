@@ -11,9 +11,16 @@ export enum LogLevel {
 
 const COLORS: Record<LogLevel, string> = {
     [LogLevel.DEBUG]: '\x1b[90m',    // Gray
-    [LogLevel.INFO]: '\x1b[32m',     // Green
-    [LogLevel.WARN]: '\x1b[33m',  // Yellow
+    [LogLevel.INFO]: '\x1b[97m',     // White
+    [LogLevel.WARN]: '\x1b[33m',     // Yellow
     [LogLevel.CRITICAL]: '\x1b[31m'  // Red
+}
+
+const EMOJI: Record<LogLevel, string> = {
+    [LogLevel.DEBUG]: '🔍',
+    [LogLevel.INFO]: '💡',
+    [LogLevel.WARN]: '⚠️',
+    [LogLevel.CRITICAL]: '🔥'
 }
 const RESET = '\x1b[0m'
 
@@ -25,9 +32,10 @@ export function log(message: any, level: LogLevel = LogLevel.DEBUG) {
     if (!enabled || level < threshold) return
 
     const color = COLORS[level] || ''
+    const emoji = EMOJI[level] || ''
     const label = LogLevel[level]
     const padded = label.padStart(9) // e.g. "INFO " → length 5
-    console.log(`${color}[${padded}]${RESET} ${message.toString()}`)
+    console.log(`${color}[${emoji}${padded}]${RESET} ${message.toString()}`)
 }
 
 export default { LogLevel, log }
