@@ -11,8 +11,8 @@ dotenv.config({ path: '.env' })
 const PORT = process.env.PORT || 3000
 
 const ROUTES = [
-  ApiAuth,
-  Health,
+  // ApiAuth,
+  // Health,
   ApiOpenAi
 ]
 
@@ -145,12 +145,6 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`Better Auth configured`)
   console.log(`Auth endpoints available at http://localhost:${PORT}/api/auth`)
-
-  //Testing filtered logs
-  Log.log("Testing Debug message..", LogLevel.DEBUG);
-  Log.log("FYI this is a test of an INFO level log", LogLevel.INFO);
-  Log.log("OI! Something is probably bad! This is a WARNING! ", LogLevel.WARN);
-  Log.log("OH FUCK OH FUCK OH FUCK", LogLevel.CRITICAL);
 })
 
 export default server
