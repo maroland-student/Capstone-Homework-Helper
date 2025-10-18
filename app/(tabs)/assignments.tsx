@@ -1,5 +1,13 @@
-import { useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from "react";
+import {
+  FlatList,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function AssignmentManager() {
   type Problem = {
@@ -17,9 +25,14 @@ export default function AssignmentManager() {
   };
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [assignmentName, setAssignmentName] = useState('');
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [assignmentName, setAssignmentName] = useState("");
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<Assignment | null>(null);
   const [showCreateAssignment, setShowCreateAssignment] = useState(false);
+  const [showAddProblem, setShowAddProblem] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [difficulty, setDifficulty] = useState("medium");
 
   const createAssignment = () => {
     if (assignmentName.trim()) {
@@ -30,7 +43,7 @@ export default function AssignmentManager() {
         createdAt: new Date().toLocaleDateString(),
       };
       setAssignments([...assignments, newAssignment]);
-      setAssignmentName('');
+      setAssignmentName("");
       setShowCreateAssignment(false);
     }
   };
@@ -42,19 +55,206 @@ export default function AssignmentManager() {
     }
   };
 
+  const addProblemToAssignment = () => {
+    if (selectedAssignment && question.trim() && answer.trim()) {
+      const updatedAssignments = assignments.map((a) => {
+        if (a.id === selectedAssignment.id) {
+          const newProblem: Problem = {
+            id: Date.now(),
+            question: question.trim(),
+            answer: answer.trim(),
+            difficulty,
+          };
+          return { ...a, problems: [...a.problems, newProblem] };
+        }
+        return a;
+      });
+      setAssignments(updatedAssignments);
+      setSelectedAssignment(
+        updatedAssignments.find((a) => a.id === selectedAssignment.id) || null
+      );
+      setQuestion("");
+      setAnswer("");
+      setDifficulty("medium");
+      setShowAddProblem(false);
+    }
+  };
+
+  const deleteProblem = (problemId: number) => {
+    if (selectedAssignment) {
+      const updatedAssignments = assignments.map((a) => {
+        if (a.id === selectedAssignment.id) {
+          return {
+            ...a,
+            problems: a.problems.filter((p) => p.id !== problemId),
+          };
+        }
+        return a;
+      });
+      setAssignments(updatedAssignments);
+      setSelectedAssignment(
+        updatedAssignments.find((a) => a.id === selectedAssignment.id) || null
+      );
+    }
+  };
+
+  const getDifficultyBadgeStyle = (diff: string) => {
+    if (diff === "easy") return [styles.badge, styles.badgeEasy];
+    if (diff === "medium") return [styles.badge, styles.badgeMedium];
+    return [styles.badge, styles.badgeHard];
+  };
+
+  const getDifficultyTextStyle = (diff: string) => {
+    if (diff === "easy") return styles.badgeTextEasy;
+    if (diff === "medium") return styles.badgeTextMedium;
+    return styles.badgeTextHard;
+  };
+
+  if (selectedAssignment) {
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <TouchableOpacity onPress={() => setSelectedAssignment(null)}>
+            <Text style={styles.backButton}>← Back</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.heading}>{selectedAssignment.name}</Text>
+          <Text style={styles.subheading}>
+            {selectedAssignment.problems.length} problems
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => setShowAddProblem(true)}
+            style={styles.addButton}
+          >
+            <Text style={styles.addButtonText}>+ Add Problem</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.listHeading}>Problems</Text>
+          {selectedAssignment.problems.length === 0 ? (
+            <Text style={styles.emptyState}>
+              No problems yet. Add one above!
+            </Text>
+          ) : (
+            <FlatList
+              data={selectedAssignment.problems}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.problemCard}>
+                  <View style={styles.problemHeader}>
+                    <View style={getDifficultyBadgeStyle(item.difficulty)}>
+                      <Text style={getDifficultyTextStyle(item.difficulty)}>
+                        {item.difficulty.charAt(0).toUpperCase() +
+                          item.difficulty.slice(1)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => deleteProblem(item.id)}>
+                      <Text style={styles.deleteButton}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.problemQuestion}>{item.question}</Text>
+                  <Text style={styles.problemAnswer}>
+                    <Text style={styles.answerLabel}>Answer: </Text>
+                    {item.answer}
+                  </Text>
+                </View>
+              )}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+
+        <Modal visible={showAddProblem} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalHeading}>Add Problem</Text>
+
+              <Text style={styles.label}>Problem Question</Text>
+              <TextInput
+                value={question}
+                onChangeText={setQuestion}
+                placeholder="Enter the problem question..."
+                style={styles.textInput}
+                multiline
+                numberOfLines={4}
+                placeholderTextColor="#9ca3af"
+              />
+
+              <Text style={styles.label}>Answer</Text>
+              <TextInput
+                value={answer}
+                onChangeText={setAnswer}
+                placeholder="Enter the answer..."
+                style={styles.textInput}
+                multiline
+                numberOfLines={2}
+                placeholderTextColor="#9ca3af"
+              />
+
+              <Text style={styles.label}>Difficulty</Text>
+              <View style={styles.difficultyButtons}>
+                {(["easy", "medium", "hard"] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    onPress={() => setDifficulty(level)}
+                    style={[
+                      styles.diffButton,
+                      difficulty === level && styles.diffButtonActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.diffButtonText,
+                        difficulty === level && styles.diffButtonTextActive,
+                      ]}
+                    >
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  onPress={() => setShowAddProblem(false)}
+                  style={[styles.modalButton, styles.cancelButton]}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={addProblemToAssignment}
+                  style={[styles.modalButton, styles.confirmButton]}
+                >
+                  <Text style={styles.confirmButtonText}>Add Problem</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.heading}>Assignments</Text>
         <Text style={styles.subheading}>Create and manage assignments</Text>
 
-        <TouchableOpacity onPress={() => setShowCreateAssignment(true)} style={styles.addButton}>
+        <TouchableOpacity
+          onPress={() => setShowCreateAssignment(true)}
+          style={styles.addButton}
+        >
           <Text style={styles.addButtonText}>+ Create Assignment</Text>
         </TouchableOpacity>
 
-        <Text style={styles.listHeading}>Your Assignments ({assignments.length})</Text>
+        <Text style={styles.listHeading}>
+          Your Assignments ({assignments.length})
+        </Text>
         {assignments.length === 0 ? (
-          <Text style={styles.emptyState}>No assignments yet. Create one above!</Text>
+          <Text style={styles.emptyState}>
+            No assignments yet. Create one above!
+          </Text>
         ) : (
           <FlatList
             data={assignments}
@@ -68,7 +268,8 @@ export default function AssignmentManager() {
                   <View>
                     <Text style={styles.assignmentName}>{item.name}</Text>
                     <Text style={styles.assignmentMeta}>
-                      {item.problems.length} problem{item.problems.length !== 1 ? 's' : ''} • {item.createdAt}
+                      {item.problems.length} problem
+                      {item.problems.length !== 1 ? "s" : ""} • {item.createdAt}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -121,199 +322,135 @@ export default function AssignmentManager() {
 }
 
 const styles = {
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f9ff',
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 120,
-    paddingTop: 60,
-  },
+  container: { flex: 1, backgroundColor: "#f0f9ff" },
+  content: { padding: 24, paddingBottom: 120, paddingTop: 60 },
   heading: {
     fontSize: 32,
-    fontWeight: 'bold' as 'bold',
-    color: '#1f2937',
+    fontWeight: "bold" as "bold",
+    color: "#1f2937",
     marginBottom: 8,
   },
-  subheading: {
-    fontSize: 16,
-    color: '#4b5563',
-    marginBottom: 24,
-  },
+  subheading: { fontSize: 16, color: "#4b5563", marginBottom: 24 },
   backButton: {
     fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '600' as '600',
+    color: "#2563eb",
+    fontWeight: "600" as "600",
     marginBottom: 16,
   },
   addButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: "#2563eb",
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
-    alignItems: 'center' as const,
+    alignItems: "center" as const,
   },
-  addButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600' as const,
-  },
+  addButtonText: { color: "white", fontSize: 16, fontWeight: "600" as const },
   listHeading: {
     fontSize: 20,
-    fontWeight: 'bold' as 'bold',
-    color: '#1f2937',
+    fontWeight: "bold" as "bold",
+    color: "#1f2937",
     marginBottom: 12,
   },
   emptyState: {
-    color: '#9ca3af',
-    textAlign: 'center' as 'center',
+    color: "#9ca3af",
+    textAlign: "center" as "center",
     paddingVertical: 32,
     fontSize: 16,
   },
   assignmentCard: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     elevation: 3,
   },
   assignmentHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
   },
-  assignmentDelete: {
-    paddingLeft: 16,
-  },
+  assignmentDelete: { paddingLeft: 16 },
   assignmentName: {
     fontSize: 18,
-    fontWeight: '600' as '600',
-    color: '#1f2937',
+    fontWeight: "600" as "600",
+    color: "#1f2937",
     marginBottom: 4,
   },
-  assignmentMeta: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
+  assignmentMeta: { fontSize: 13, color: "#6b7280" },
   problemCard: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     elevation: 3,
   },
   problemHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
     marginBottom: 12,
   },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  badgeEasy: {
-    backgroundColor: '#dcfce7',
-  },
-  badgeMedium: {
-    backgroundColor: '#fef3c7',
-  },
-  badgeHard: {
-    backgroundColor: '#fee2e2',
-  },
-  badgeTextEasy: {
-    color: '#166534',
-    fontSize: 12,
-    fontWeight: '600' as '600',
-  },
+  badge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  badgeEasy: { backgroundColor: "#dcfce7" },
+  badgeMedium: { backgroundColor: "#fef3c7" },
+  badgeHard: { backgroundColor: "#fee2e2" },
+  badgeTextEasy: { color: "#166534", fontSize: 12, fontWeight: "600" as "600" },
   badgeTextMedium: {
-    color: '#92400e',
+    color: "#92400e",
     fontSize: 12,
-    fontWeight: '600' as '600',
+    fontWeight: "600" as "600",
   },
-  badgeTextHard: {
-    color: '#991b1b',
-    fontSize: 12,
-    fontWeight: '600' as '600',
-  },
-  deleteButton: {
-    fontSize: 15,
-    color: '#ef4444',
-    fontWeight: '600' as '600',
-  },
+  badgeTextHard: { color: "#991b1b", fontSize: 12, fontWeight: "600" as "600" },
+  deleteButton: { fontSize: 15, color: "#ef4444", fontWeight: "600" as "600" },
   problemQuestion: {
     fontSize: 16,
-    fontWeight: '600' as '600',
-    color: '#1f2937',
+    fontWeight: "600" as "600",
+    color: "#1f2937",
     marginBottom: 8,
   },
-  problemAnswer: {
-    fontSize: 14,
-    color: '#4b5563',
-  },
-  answerLabel: {
-    fontWeight: '600' as '600',
-  },
+  problemAnswer: { fontSize: 14, color: "#4b5563" },
+  answerLabel: { fontWeight: "600" as "600" },
   label: {
     fontSize: 14,
-    fontWeight: '600' as '600',
-    color: '#374151',
+    fontWeight: "600" as "600",
+    color: "#374151",
     marginBottom: 8,
     marginTop: 12,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#1f2937',
-    textAlignVertical: 'top' as 'top',
+    color: "#1f2937",
+    textAlignVertical: "top" as "top",
   },
-  difficultyButtons: {
-    flexDirection: 'row' as const,
-    gap: 8,
-    marginTop: 8,
-  },
+  difficultyButtons: { flexDirection: "row" as const, gap: 8, marginTop: 8 },
   diffButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    alignItems: 'center' as const,
-    backgroundColor: '#f9fafb',
+    alignItems: "center" as const,
+    backgroundColor: "#f9fafb",
   },
-  diffButtonActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
+  diffButtonActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
   diffButtonText: {
     fontSize: 14,
-    fontWeight: '600' as '600',
-    color: '#6b7280',
+    fontWeight: "600" as "600",
+    color: "#6b7280",
   },
-  diffButtonTextActive: {
-    color: 'white',
-  },
+  diffButtonTextActive: { color: "white" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end' as const,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end" as const,
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 24,
@@ -321,35 +458,27 @@ const styles = {
   },
   modalHeading: {
     fontSize: 24,
-    fontWeight: 'bold' as 'bold',
-    color: '#1f2937',
+    fontWeight: "bold" as "bold",
+    color: "#1f2937",
     marginBottom: 20,
   },
-  modalButtons: {
-    flexDirection: 'row' as const,
-    gap: 12,
-    marginTop: 24,
-  },
+  modalButtons: { flexDirection: "row" as const, gap: 12, marginTop: 24 },
   modalButton: {
     flex: 1,
     borderRadius: 8,
     padding: 12,
-    alignItems: 'center' as const,
+    alignItems: "center" as const,
   },
-  cancelButton: {
-    backgroundColor: '#f3f4f6',
-  },
+  cancelButton: { backgroundColor: "#f3f4f6" },
   cancelButtonText: {
-    color: '#6b7280',
-    fontWeight: '600' as '600',
+    color: "#6b7280",
+    fontWeight: "600" as "600",
     fontSize: 16,
   },
-  confirmButton: {
-    backgroundColor: '#2563eb',
-  },
+  confirmButton: { backgroundColor: "#2563eb" },
   confirmButtonText: {
-    color: 'white',
-    fontWeight: '600' as '600',
+    color: "white",
+    fontWeight: "600" as "600",
     fontSize: 16,
   },
 };
