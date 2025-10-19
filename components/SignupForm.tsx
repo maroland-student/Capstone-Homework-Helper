@@ -3,14 +3,14 @@ import { useState } from 'react';
 
 import { createError, ErrorType, parseAuthError, parseNetworkError } from '@/lib/error-utils';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 interface SignupData {
@@ -219,6 +219,7 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
           style={[styles.button, loading && styles.buttonDisabled]} 
           onPress={handleSignup}
           disabled={loading}
+          testID="signup-button"
         >
           {loading ? (
             <ActivityIndicator color="white" />

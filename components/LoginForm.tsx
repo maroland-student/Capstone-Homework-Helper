@@ -3,14 +3,14 @@ import { createError, ErrorType, parseAuthError, parseNetworkError } from '@/lib
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 interface LoginData {
@@ -124,6 +124,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           style={[styles.button, loading && styles.buttonDisabled]} 
           onPress={handleLogin}
           disabled={loading}
+          testID="login-button"
         >
           {loading ? (
             <ActivityIndicator color="white" />
