@@ -37,6 +37,7 @@ export async function getBody(req: IncomingMessage) {
     try {
         return JSON.parse(raw)
     } catch {
+        console.log("Unable to parse json, returning string")
         return raw
     }
 }
@@ -59,7 +60,8 @@ export function sendHtml(res: ServerResponse, status: number, data: string){
 export function notFound(res: ServerResponse): void;
 export function notFound(res: ServerResponse, errorMessage: string): void;
 export function notFound(res: ServerResponse, errorMessage?: string): void {
-  sendJson(res, 404, { error: errorMessage ?? 'Not Found' })
+  sendJson(res, 404, { 
+    error: errorMessage ?? 'Not Found' })
 }
 
 export async function simulateDelay(res: ServerResponse, milliseconds: number, status: number, data: string){
