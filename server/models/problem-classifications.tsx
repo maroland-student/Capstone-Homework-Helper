@@ -1,21 +1,6 @@
+import Log, { LogLevel } from '../utilities/toggle_logs';
 
-// Interface definitions
-export interface ProblemClassification {
-    id: number                          // Unique identifier for the classification
-    name: string                        // Name of the classification
-    confidence: number                  // Confidence level of the classification (0.00 to 1.00)   
-    subject?: object                    // Optional subject information associated with the classification
-    description?: string                // Optional description of the classification
-}
-
-export interface SubjectInfo {
-    name: string                                        // Name of the subject
-    id: SubjectId                                       // Unique identifier for the subject
-    relatedSubjects?: ReadonlyArray<SubjectInfo>        // Optional array of related subjects
-    details?: string                                    // Optional additional details about the subject
-}
-
-// ID enum for subject matter enums
+// Enum definitions
 export enum SubjectId {
   Variables,
   Expressions,
@@ -42,12 +27,28 @@ export enum SubjectId {
   SequencesArithmetic,
 }
 
+// Interface definitions
+export interface ProblemClassification {
+    id: number                              // Unique identifier for the classification
+    name: string                            // Name of the classification
+    confidence: number                      // Confidence level of the classification (0.00 to 1.00)   
+    subjects: ReadonlyArray<SubjectInfo>    // Optional subject information associated with the classification
+    description?: string                    // Optional description of the classification
+}
+
+export interface SubjectInfo {
+    name: string                                        // Name of the subject
+    id: SubjectId                                       // Unique identifier for the subject
+    relatedSubjects?: ReadonlyArray<SubjectInfo>        // Optional array of related subjects
+    details?: string                                    // Optional additional details about the subject
+}
+
 // Empty Classification constant
 export const EmptyClassification: ProblemClassification = {
     id: 0,
     name: "",
     confidence: 0.0,
-    subject: undefined,
+    subjects: [],
     description: undefined
 }
 
@@ -61,12 +62,53 @@ export function isNullOrEmpty(classification: ProblemClassification | null | und
     if(classification.name != EmptyClassification.name)
         return false;
 
-    if(classification.confidence != EmptyClassification.confidence)
+    if(classification.subjects && classification.subjects.length > 0)
         return false;
 
-    // subject and description are optional, omitting from null/empty check
+    // Description is optional and confidence is immaterial to content, omitting from null/empty check
 
     return true;
+}
+
+export function classificationFactory(name: string, confidence: number, description?: string, subjects: SubjectInfo[] = []): ProblemClassification {
+    // Check valid inputs
+    var valid = true;
+    if(name == undefined || name.length == 0)
+    {
+        Log.log("Unable to assemble problem classification. Missing name", LogLevel.WARN);
+        valid = false;
+    }
+    if(subjects == undefined || subjects.length == 0)
+    {
+        Log.log(`Unable to assemble problem classification for ${name}. Missing subjects`, LogLevel.WARN);
+        valid = false;
+    }
+
+    if(!valid){
+        return EmptyClassification;
+    }
+
+    // Clamp confidence
+    if(confidence < 0)
+        confidence = 0;
+    if(confidence > 1)
+        confidence = 1;
+    
+    // Generate a simple hash code for the name to use as an ID
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        const char = name.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+    } 
+
+    return {
+        id: Math.abs(hash),
+        name,
+        confidence,
+        subjects: subjects,
+        description: description
+    }
 }
 
 // Sample Problem Classifications
