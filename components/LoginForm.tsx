@@ -29,6 +29,22 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
   });
   const [loading, setLoading] = useState(false);
 
+  const handleForgotEmail = () => {
+    if (Platform.OS === 'web') {
+      window.alert('Forgot Email: ADD POPUP PANEL TO FILL IN BETTER AUTH HERE.');
+    } else {
+      Alert.alert('Forgot Email: ADD POPUP PANEL TO FILL IN BETTER AUTH HERE.');
+    }
+  };
+
+  const handleForgotPassword = () => {
+    if (Platform.OS === 'web') {
+    window.alert('Forgot Password: ADD POPUP PANEL TO FILL IN BETTER AUTH HERE.');
+    } else {
+      Alert.alert('Forgot Password: ADD POPUP PANEL TO FILL IN BETTER AUTH HERE.');
+    }
+  };
+
   const handleLogin = async () => {
     if (!formData.email || !formData.password) {
       const error = createError(
@@ -120,6 +136,15 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           secureTextEntry
         />
         
+        <View style={styles.forgotContainer}>
+          <TouchableOpacity onPress={handleForgotEmail}>
+            <Text style={styles.forgotLink}>Forgot Email?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleForgotPassword}>
+            <Text style={styles.forgotLink}>Forgot Password?</Text>
+          </TouchableOpacity>
+        </View>
+        
         <TouchableOpacity 
           style={[styles.button, loading && styles.buttonDisabled]} 
           onPress={handleLogin}
@@ -210,6 +235,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#007AFF',
     fontWeight: '600',
+  },
+  forgotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+    paddingHorizontal: 5,
+  },
+  forgotLink: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
   },
   helpContainer: {
     marginTop: 15,
