@@ -1,8 +1,9 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
-import { Platform } from 'react-native';
+import { useAuth } from '@/lib/auth-context';
 
 export default function TabLayout() {
+
   return (
     <Tabs
       screenOptions={{

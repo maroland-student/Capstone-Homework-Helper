@@ -59,7 +59,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       if (data) {
         console.log('Login successful:', data);
         // navigation will be handled by the parent component
-        router.replace('/(tabs)/explore');
+        router.replace('/(tabs)');
       } else if (error) {
         const appError = parseAuthError(error);
         console.error(`[${appError.type}] Login error:`, appError.message);

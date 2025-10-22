@@ -5,24 +5,19 @@ import {
 } from 'react-native';
 import LoginForm from '../components/LoginForm';
 import SignupForm from '../components/SignupForm';
+import { Redirect } from 'expo-router';
+import { useAuth } from '@/lib/auth-context';
 
 export default function LoginScreen() {
   const [showSignup, setShowSignup] = useState(false);
 
-  const handleSignupPress = () => {
-    setShowSignup(true);
-  };
-
-  const handleBackToLogin = () => {
-    setShowSignup(false);
-  };
 
   return (
     <View style={styles.container}>
       {showSignup ? (
-        <SignupForm onBackToLogin={handleBackToLogin} />
+        <SignupForm onBackToLogin={() => setShowSignup(false)} />
       ) : (
-        <LoginForm onSignupPress={handleSignupPress} />
+        <LoginForm onSignupPress={() => setShowSignup(true)} />
       )}
       
       <View style={styles.testContainer}>

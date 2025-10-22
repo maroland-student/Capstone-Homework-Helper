@@ -50,16 +50,6 @@ export default function SettingsScreen() {
       await signOut();
       console.log('Logout successful');
       
-      // Force redirect to login screen as fallback
-      router.replace('/');
-      
-      // Force refresh the page to ensure state is updated
-      if (Platform.OS === 'web') {
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      }
-      
     } catch (error: any) {
       console.error('Logout error:', error);
       if (Platform.OS === 'web') {
