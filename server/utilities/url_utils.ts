@@ -77,4 +77,35 @@ export async function simulateDelay(res: ServerResponse, milliseconds: number, s
     sendText(res, status, data);
 }
 
-export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound, simulateDelay}
+export function hasMethod(req: IncomingMessage, allowedMethods: string[], target: string | undefined): boolean{
+    if(!req || req == undefined)
+        return true;
+
+    if(!allowedMethods || allowedMethods.length == 0)
+        return true;
+
+    if(target == undefined || target === "")
+        return false;
+
+    for(const allowed of allowedMethods){
+        if(allowed === target)
+            return true;
+
+        if(allowed.toLowerCase() === target.toLowerCase())
+            return true;
+    }
+
+
+    return false;
+}
+
+export function hasBody(req: IncomingMessage): boolean {
+    const body = getBody(req);
+    return body != undefined;
+}
+
+export function hasRequiredQueryParams(req: IncomingMessage, queryParams: string[]): boolean{
+    return false;
+}
+
+export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound, simulateDelay, hasBody, hasRequiredQueryParams, hasMethod}

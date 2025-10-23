@@ -112,9 +112,6 @@ export function classificationFactory(name: string, confidence: number, descript
 }
 
 // Sample Problem Classifications
-export const SampleClassifications: ProblemClassification[] = [
-]
-
 export const VariablesSubject: SubjectInfo = {
   id: SubjectId.Variables,
   name: "Variables",
