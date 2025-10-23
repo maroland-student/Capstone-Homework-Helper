@@ -1,9 +1,12 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useAuth } from '@/lib/auth-context';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -17,22 +20,54 @@ export default function SettingsScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
 
+  const { signOut } = useAuth();
   const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
   const borderColor = useThemeColor({}, 'icon');
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => {
-          // link logout stuff here later
-          console.log('User logged out');
-        }}
-      ]
-    );
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (!confirmed) return;
+    } else {
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Logout', style: 'destructive', onPress: performLogout }
+        ]
+      );
+      return;
+    }
+    
+    await performLogout();
+  };
+
+  const performLogout = async () => {
+    try {
+      console.log('Attempting to logout...');
+      await signOut();
+      console.log('Logout successful');
+      
+      // Force redirect to login screen as fallback
+      router.replace('/');
+      
+      // Force refresh the page to ensure state is updated
+      if (Platform.OS === 'web') {
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }
+      
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Error: Something went wrong during logout. Please try again.');
+      } else {
+        Alert.alert('Error', 'Something went wrong during logout. Please try again.');
+      }
+    }
   };
 
   const SettingsItem = ({ 
