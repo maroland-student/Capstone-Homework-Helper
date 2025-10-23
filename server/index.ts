@@ -7,6 +7,19 @@ dotenv.config({ path: '.env' })
 
 const PORT = process.env.PORT || 3000
 
+
+const exposeRoutes = process.env.exposeRoutes === 'true'
+                    && process.env.NODE_ENV !== 'production'
+
+// localhost guard ** only here for local testing prevention
+
+// common cases
+const localConnect = 
+  (req: import('http').IncomingMessage) => {
+      let ip = req.socket.remoteAddress || ''
+      return ip === '127.0.0.1' || ip === '::1' 
+}
+
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
   
@@ -35,6 +48,9 @@ const server = createServer(async (req, res) => {
     return
   }
 
+
+
+
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ 
@@ -43,6 +59,31 @@ const server = createServer(async (req, res) => {
       auth: 'Better Auth configured'
     }))
     return
+  }
+
+
+  if (exposeRoutes && localConnect(req) && req.url === '/_internal/healthCheck') {
+
+    // features to display
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'OK', timestamp : new Date().toISOString()}))
+    return
+  }
+
+
+  if (exposeRoutes && localConnect(req) && req.url === '/_internal/versionCheck') {
+    res.writeHead(200, { 'Content-Type' : 'application/json'})
+    res.end(JSON.stringify( {
+
+      /// features to display
+      version: process.env.npm_package_version || 'cannot find version', 
+      node: process.version, 
+      env: process.env.NODE_ENV || 'cannot find development tool'
+    }))
+    
+
+    return
+
   }
 
   if (req.url?.startsWith('/api/auth')) {
@@ -118,4 +159,33 @@ server.listen(PORT, () => {
   console.log(`Auth endpoints available at http://localhost:${PORT}/api/auth`)
 })
 
+
+
+
+//// Terminal Logging
+
+if (exposeRoutes) {
+  console.log('Endponts Currently Enabled: /_internal/healthCheck, /_internal/versionCheck')
+
+}
+
+else {
+  console.log('Endpoints Currently Disabled: ')
+}
+
+
+
+
 export default server
+
+
+// *** Tests to run ***:
+
+// Terminal 1: 
+  // exposeRoutes=true npm run server
+// Terminal 2 couple quick tests: 
+
+  // curl -s http:localhost:3000/health
+      // 
+  // curl -s http:localhost:3000/_internal/healthCheck
+  // curl -s http:localhost:3000/_internal/versionCheck
