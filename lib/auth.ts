@@ -18,12 +18,17 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
-    autoSignIn: true,
+    autoSignIn: true, // Allow auto sign-in for proper session management
     minPasswordLength: 6,
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
+    freshAge: 60 * 60 * 24, // 1 day - session is fresh if created within last 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes - short cache to prevent stale data
+    },
   },
   trustedOrigins: [
     "http://localhost:3000",
@@ -45,6 +50,16 @@ export const auth = betterAuth({
   ],
   baseURL: "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET || "your-secret-key-change-in-production",
+  // Cookie security settings
+  cookies: {
+    sessionToken: {
+      name: "better-auth.session-token",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // Only secure in production
+      sameSite: "lax", // Prevent CSRF attacks
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    },
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;

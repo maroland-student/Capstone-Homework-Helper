@@ -12,12 +12,12 @@ export const unstable_settings = {
 };
 
 function RootLayoutNav() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasExplicitlyLoggedIn } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Auth routing check:', { user, loading, segments });
+    console.log('Auth routing check:', { user, loading, segments, hasExplicitlyLoggedIn });
     
     if (loading) return;
 
@@ -27,12 +27,12 @@ function RootLayoutNav() {
       // User is not authenticated but trying to access protected routes
       console.log('Redirecting unauthenticated user to login');
       router.replace('/');
-    } else if (user && !inAuthGroup) {
-      // User is authenticated but on login screen
+    } else if (user && !inAuthGroup && hasExplicitlyLoggedIn) {
+      // User is authenticated and has explicitly logged in, redirect to main app
       console.log('Redirecting authenticated user to main app');
       router.replace('/(tabs)');
     }
-  }, [user, loading, segments, router]);
+  }, [user, loading, segments, router, hasExplicitlyLoggedIn]);
 
   return (
     <Stack>

@@ -1,4 +1,5 @@
 import { signIn } from '@/lib/auth-client';
+import { useAuth } from '@/lib/auth-context';
 import { createError, ErrorType, parseAuthError, parseNetworkError } from '@/lib/error-utils';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -24,6 +25,7 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onSignupPress }: LoginFormProps) {
+  const { setHasExplicitlyLoggedIn } = useAuth();
   const [formData, setFormData] = useState<LoginData>({
     email: '',
     password: ''
@@ -162,6 +164,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       
       if (data) {
         console.log('Login successful:', data);
+        setHasExplicitlyLoggedIn(true);
         router.replace('/(tabs)/explore');
       } else if (error) {
         const appError = parseAuthError(error);
