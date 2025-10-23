@@ -5,7 +5,16 @@ import { ErrorType, parseDatabaseError, parseNetworkError } from '../lib/error-u
 
 dotenv.config({ path: '.env' })
 
+import ApiAi from './routes/api/ai'
+import ApiOpenAi from './routes/api/openAi'
+//import Health from './routes/health'
+import Log, { LogLevel } from './utilities/toggle_logs'
+
 const PORT = process.env.PORT || 3000
+const ROUTES = [
+  ApiAi,
+  ApiOpenAi,
+]
 
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
@@ -29,12 +38,14 @@ const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With, Accept, Origin')
   res.setHeader('Access-Control-Allow-Credentials', 'true')
 
+  // Options
   if (req.method === 'OPTIONS') {
     res.writeHead(200)
     res.end()
     return
   }
 
+  // Health route
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ 
@@ -45,6 +56,7 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Auth route
   if (req.url?.startsWith('/api/auth')) {
     try {
       const url = new URL(req.url, `http://${req.headers.host}`)
@@ -106,6 +118,15 @@ const server = createServer(async (req, res) => {
       }))
     }
     return
+  }
+  
+  // Other Routes
+  for (const route of ROUTES) {
+    if(route.handles(req)){
+      Log.log(`Routing ${req.method} ${req.url} to handler`, LogLevel.INFO)
+      await route.handle(req, res)
+      return
+    }
   }
 
   res.writeHead(404, { 'Content-Type': 'application/json' })
