@@ -10,7 +10,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
 
 // NEW
-import CameraCapture from "@/components/camera-capture";
+import CameraCapture from "@/components/CameraCapture";
 
 export default function TabTwoScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
