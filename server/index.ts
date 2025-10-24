@@ -16,6 +16,9 @@ const ROUTES = [
   ApiOpenAi,
 ]
 
+// Mock checking 'something matches'
+const samplePassword = { value: "" };
+
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin
   
@@ -68,7 +71,45 @@ const server = createServer(async (req, res) => {
         await new Promise((resolve) => req.on('end', resolve))
         body = Buffer.concat(chunks).toString()
       }
-      
+
+      // adding some endpoints for forgot/reset elements of the password
+      // does NOT continue (200)
+      // Can test with the following: 
+  
+
+          //   curl -X POST http://localhost:3000/api/auth/forgot-password
+          //   curl -X POST http://localhost:3000/api/auth/reset-password
+          //   curl -X POST http://localhost:3000/api/auth/recover-email
+
+      // Forgot Password
+      if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
+        samplePassword.value = Math.random().toString(36);
+        res.writeHead(200, { 'Content-Type' : 'application/json'} )
+        res.end(JSON.stringify({ ok: true, devToken: samplePassword.value}));
+        return
+      }
+
+      // Reset Password
+      if (req.method === 'POST' && url.pathname === '/api/auth/reset-password') {
+        res.writeHead(200, { 'Content-Type' : 'application/json'} )
+          // simming success case at all times for now
+        res.end(JSON.stringify({ ok: true, used: samplePassword.value }));
+        samplePassword.value="";
+        return
+      }
+
+      // Email Recovery
+      if (req.method === 'POST' && url.pathname === '/api/auth/recover-email') {
+        res.writeHead(200, { 'Content-Type' : 'application/json'} )
+          // Personal fake/test account persisting for now 
+        res.end(JSON.stringify({ ok: true, email: 'testemail@test.com'}))
+        return
+      }
+
+
+
+
+
       const webRequest = new Request(url.toString(), {
         method: req.method,
         headers: req.headers as HeadersInit,
