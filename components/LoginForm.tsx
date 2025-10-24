@@ -14,6 +14,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import OTPLoginForm from './OTPLoginForm';
+import PasswordResetForm from './PasswordResetForm';
 
 interface LoginData {
   email: string;
@@ -33,6 +35,8 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [showForgotEmailModal, setShowForgotEmailModal] = useState(false);
+  const [showOTPLogin, setShowOTPLogin] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [recoveryData, setRecoveryData] = useState({
@@ -90,6 +94,28 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     setRecoveryData({ firstName: '', lastName: '', phoneNumber: '' });
   };
 
+  const handleOTPLoginSuccess = (data: any) => {
+    console.log('OTP Login successful:', data);
+    setHasExplicitlyLoggedIn(true);
+    router.replace('/(tabs)/explore');
+  };
+
+  const handleOTPLoginError = (error: any) => {
+    console.error('OTP Login error:', error);
+  };
+
+  const handlePasswordResetSuccess = (data: any) => {
+    console.log('Password reset successful:', data);
+    setShowPasswordReset(false);
+    setResetEmail('');
+    Alert.alert('Success', 'Password reset successfully! You can now sign in with your new password.');
+  };
+
+  const handlePasswordResetError = (error: any) => {
+    console.error('Password reset error:', error);
+    Alert.alert('Error', 'Password reset failed. Please try again.');
+  };
+
   const handleForgotPassword = () => {
     setShowForgotPasswordModal(true);
   };
@@ -108,22 +134,30 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       setResetLoading(true);
       console.log('Password reset requested for:', resetEmail);
       
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Use the new OTP-based password reset
+      const { emailOtp } = await import('@/lib/auth-client');
+      const { data, error } = await emailOtp.sendVerificationOtp({
+        email: resetEmail,
+        type: 'forget-password',
+      });
       
-      if (Platform.OS === 'web') {
-        window.alert('Password reset link sent to your email address');
+      if (error) {
+        if (Platform.OS === 'web') {
+          window.alert(`Error: ${error.message || 'Failed to send password reset OTP'}`);
+        } else {
+          Alert.alert('Error', error.message || 'Failed to send password reset OTP');
+        }
       } else {
-        Alert.alert('Success', 'Password reset link sent to your email address');
+        // Show the password reset form with OTP input
+        setShowForgotPasswordModal(false);
+        setShowPasswordReset(true);
       }
-      
-      setShowForgotPasswordModal(false);
-      setResetEmail('');
     } catch (error) {
       console.error('Password reset error:', error);
       if (Platform.OS === 'web') {
-        window.alert('Failed to send password reset email. Please try again.');
+        window.alert('Failed to send password reset OTP. Please try again.');
       } else {
-        Alert.alert('Error', 'Failed to send password reset email. Please try again.');
+        Alert.alert('Error', 'Failed to send password reset OTP. Please try again.');
       }
     } finally {
       setResetLoading(false);
@@ -203,6 +237,27 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     }
   };
 
+  if (showOTPLogin) {
+    return (
+      <OTPLoginForm
+        onSuccess={handleOTPLoginSuccess}
+        onError={handleOTPLoginError}
+        onBack={() => setShowOTPLogin(false)}
+      />
+    );
+  }
+
+  if (showPasswordReset) {
+    return (
+      <PasswordResetForm
+        email={resetEmail}
+        onSuccess={handlePasswordResetSuccess}
+        onError={handlePasswordResetError}
+        onBack={() => setShowPasswordReset(false)}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome Back</Text>
@@ -246,10 +301,17 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
             <Text style={styles.buttonText}>Sign In</Text>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.otpLink} 
+          onPress={() => setShowOTPLogin(true)}
+        >
+          <Text style={styles.otpLinkText}>Sign In with OTP</Text>
+        </TouchableOpacity>
         
         <View style={styles.helpContainer}>
           <Text style={styles.helpText}>
-            Having trouble signing in? Make sure you're using the correct email and password.
+            Having trouble signing in? Try using OTP or make sure you're using the correct email and password.
           </Text>
         </View>
         
@@ -274,7 +336,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Reset Password</Text>
             <Text style={styles.modalSubtitle}>
-              Enter the email address associated with your account and we'll send you a link to reset your password.
+              Enter the email address associated with your account and we'll send you a verification code to reset your password.
             </Text>
             
             <TextInput
@@ -303,7 +365,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
                 {resetLoading ? (
                   <ActivityIndicator color="white" size="small" />
                 ) : (
-                  <Text style={styles.modalSubmitButtonText}>Send Reset Link</Text>
+                  <Text style={styles.modalSubmitButtonText}>Send Reset Code</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -421,6 +483,16 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  otpLink: {
+    padding: 10,
+    alignSelf: 'center',
+    marginBottom: 15,
+  },
+  otpLinkText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '500',
   },
   signupContainer: {
     flexDirection: 'row',

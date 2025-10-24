@@ -1,9 +1,10 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { emailOTP } from "better-auth/plugins";
 import { db } from "../src/db";
 import { accountsTable, sessionsTable, usersTable, verificationsTable } from "../src/db/schema";
+import { sendOTPEmail } from "./email-service";
 
-console.log('🔧 Initializing Better Auth...');
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -21,6 +22,26 @@ export const auth = betterAuth({
     autoSignIn: true, // Allow auto sign-in for proper session management
     minPasswordLength: 6,
   },
+  plugins: [
+    emailOTP({
+      async sendVerificationOTP({ email, otp, type }) {
+        try {
+          await sendOTPEmail({ email, otp, type });
+        } catch (error) {
+          console.error(`Failed to send OTP email to ${email}:`, error);
+          if (process.env.NODE_ENV === 'production') {
+            throw error;
+          }
+        }
+      },
+      otpLength: 6,
+      expiresIn: 300, // 5 minutes
+      allowedAttempts: 3,
+      sendVerificationOnSignUp: false,
+      disableSignUp: false,
+      storeOTP: 'plain', // Store OTP as plain text in database
+    }),
+  ],
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
@@ -38,15 +59,6 @@ export const auth = betterAuth({
     "exp://10.0.2.2:8081",
     "exp://127.0.0.1:8081",
     "capstone-exploration://",
-    "capstone-exploration:///(tabs)/explore",
-    "capstone-exploration:///(tabs)/",
-    "capstone-exploration:///(tabs)/index",
-    "capstone-exploration:///(tabs)/settings",
-    "/(tabs)/explore",
-    "/(tabs)/",
-    "/(tabs)/index",
-    "/(tabs)/settings",
-    "/",
   ],
   baseURL: "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET || "your-secret-key-change-in-production",
