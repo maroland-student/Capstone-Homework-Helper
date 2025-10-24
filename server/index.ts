@@ -59,7 +59,19 @@ const server = createServer(async (req, res) => {
   // Auth route
   if (req.url?.startsWith('/api/auth')) {
     try {
-      const url = new URL(req.url, `http://${req.headers.host}`)
+      const protocol = req.headers['x-forwarded-proto'] || 'http'
+      const host = req.headers.host || 'localhost:3000'
+      
+      // Ensure we have a valid host
+      if (!host || host === 'undefined') {
+        console.error('Invalid host header:', req.headers.host)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Invalid host header' }))
+        return
+      }
+      
+      const url = new URL(req.url, `${protocol}://${host}`)
+      
       
       let body: string | undefined
       if (req.method !== 'GET' && req.method !== 'HEAD') {
