@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { emailOtp, signIn } from '../lib/auth-client';
+
+const COOLDOWN_TIME = 30;
 
 interface OTPLoginFormProps {
   onSuccess?: (data: any) => void;
@@ -20,6 +22,9 @@ export default function OTPLoginForm({
   const [step, setStep] = useState<Step>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+
+  const [cooldown, setCooldown] = useState(0);
+
   const [otpSent, setOtpSent] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
@@ -43,6 +48,8 @@ export default function OTPLoginForm({
         setOtpSent(true);
         setStep('otp');
         Alert.alert('Success', 'OTP sent successfully! Check your email.');
+
+        setCooldown(COOLDOWN_TIME);
       }
     } catch (err) {
       Alert.alert('Error', 'Failed to send OTP. Please try again.');
@@ -86,10 +93,39 @@ export default function OTPLoginForm({
   };
 
   const handleResend = async () => {
+
+    if (isResending) {
+      Alert.alert('Please Wait! We are sending a new code...');
+      return;
+    }
+
+    if (cooldown > 0) {
+      Alert.alert('Attention', `Please wait ${cooldown} second${cooldown === 1 ? '' : 's'} before you resend.`);
+      return;
+    }
     setIsResending(true);
     await sendOTP('sign-in');
     setIsResending(false);
+
+
   };
+
+  useEffect(() =>  {
+    if (cooldown <= 0) {
+      return;
+    }
+    const downTime = setInterval(() => {
+      setCooldown((s) => (s>0 ? s-1 : 0));
+    }, 1000);
+
+    return () => clearInterval(downTime);
+  }, 
+  
+  [cooldown > 0]
+
+);
+
+
 
   const renderEmailStep = () => (
     <View style={styles.container}>
@@ -170,14 +206,17 @@ export default function OTPLoginForm({
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.resendButton, isResending && styles.buttonDisabled]}
+        style={[styles.resendButton, (isResending || cooldown > 0 )&& styles.buttonDisabled]}
         onPress={handleResend}
-        disabled={isResending}
+          // keeping the button 'looking' disabled, but still going through a 'press' scenario
+        accessibilityState={{ disabled: isResending || cooldown > 0}}
       >
         {isResending ? (
           <ActivityIndicator color="#007AFF" />
+        ) : cooldown > 0 ? (
+          <Text style={styles.resendButtonText}>PLEASE WAIT! You are able to Resend in {cooldown} seconds</Text>
         ) : (
-          <Text style={styles.resendButtonText}>Resend OTP</Text>
+          <Text style={styles.resendButtonText}>Resend One-time Password</Text>
         )}
       </TouchableOpacity>
 
