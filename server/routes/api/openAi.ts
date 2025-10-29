@@ -15,6 +15,45 @@ export function handles(req: IncomingMessage): boolean {
 }
 
 export async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if(req.url?.startsWith('/api/openai/math-problem')){
+        ToggleLogs.log('Handling OpenAI math problem request..', LogLevel.INFO);
+
+        // Filter only GET requests
+        if(req.method !== 'GET'){
+            ToggleLogs.log('Math problem endpoint only handles GET. Received: ' + req.method, LogLevel.WARN);
+            UrlUtils.sendJson(res,405, { 
+                error: 'Method Not Allowed', 
+                message: 'Only GET requests are allowed for this endpoint.' 
+            });
+            return;
+        }
+
+        // Generate Algebra 1 problem
+        try{
+            ToggleLogs.log('Generating Algebra 1 word problem...', LogLevel.INFO);
+            OpenAIHandler.generateAlgebra1Problem().then((problemText) => {
+                ToggleLogs.log(`Generated problem: ${problemText.substring(0, 100)}...`, LogLevel.DEBUG);
+                UrlUtils.sendJson(res,200, { 
+                    problem: problemText 
+                });
+            }).catch((err) => {
+                ToggleLogs.log('Error generating math problem: ' + err, LogLevel.CRITICAL);
+                UrlUtils.sendJson(res,500, { 
+                    error: 'Internal Server Error', 
+                    message: 'An error occurred while generating the math problem.' 
+                });
+            });
+        }catch(err){
+            ToggleLogs.log('Error processing math problem request: ' + err, LogLevel.CRITICAL);
+            UrlUtils.sendJson(res,500, { 
+                error: 'Internal Server Error', 
+                message: 'An error occurred while processing the request.' 
+            });
+        }
+
+        return;
+    }
+
     if(req.url?.startsWith('/api/openai/query')){
         ToggleLogs.log('Handling OpenAI query request..', LogLevel.INFO);
 
