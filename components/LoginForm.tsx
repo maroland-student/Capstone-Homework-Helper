@@ -199,6 +199,51 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       if (data) {
         console.log('Login successful:', data);
         setHasExplicitlyLoggedIn(true);
+
+        // Extracting Name info
+
+
+        const email = data.user?.email ?? '';
+        const role = /teacher/i.test(email) ? 'Teacher' : 'Student';
+
+        // Name filtering by  character
+
+        const messyName = (data.user?.name || '').trim();
+        const nameFromEmail = email.split('@')[0] || 'User';
+        const firstName = (messyName ? messyName.split(/\s+/)[0] : nameFromEmail).trim();
+
+        const expectedResponse = `Hello, Welcome ${role} ${firstName}`;
+
+
+        // GPT-5 Success Case (Can modify for more personalization later)
+
+        try {
+          const SERVER_URL = 
+            Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+
+            const gptCALL = await fetch(`${SERVER_URL}/api/openai/query`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json'},
+              body: JSON.stringify( {
+                prompt: `Return exactly: ${expectedResponse}`
+              }),
+            });
+
+
+            const gptJSON = await gptCALL.json();
+
+            // fallback in case chatgpt is being a dummy
+            const gptRESPONSE = typeof gptJSON?.response === 'string' ? gptJSON.response.trim() : '';
+            Alert.alert('WELCOME', gptRESPONSE === expectedResponse ? gptRESPONSE : expectedResponse);
+        }
+
+        catch {
+
+
+          // GPT Fail Case
+          Alert.alert('WELCOME', expectedResponse);
+
+        }
         router.replace('/(tabs)/explore');
       } else if (error) {
         const appError = parseAuthError(error);
