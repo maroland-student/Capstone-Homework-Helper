@@ -1,4 +1,6 @@
-import { boolean, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+
+export const roleEnum = pgEnum("role", ["teacher", "student"]);
 
 // Better Auth required tables
 export const usersTable = pgTable("user", {
@@ -7,6 +9,7 @@ export const usersTable = pgTable("user", {
   emailVerified: boolean().default(false).notNull(),
   name: varchar({ length: 255 }),
   image: text("image"),
+  role: roleEnum("role").notNull().default("student"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
