@@ -28,6 +28,12 @@ export enum SubjectId {
 }
 
 // Interface definitions
+export interface StepByStepSolution {
+  id: number,
+  problemId: number,
+  steps: Object
+}
+
 export interface ProblemClassification {
     id: number                              // Unique identifier for the classification
     name: string                            // Name of the classification
