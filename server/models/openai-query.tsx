@@ -4,7 +4,7 @@
 // https://platform.openai.com/docs/api-reference/responses/create
 // https://platform.openai.com/docs/guides/text?api-mode=responses#reusable-prompts
 
-export interface openAIQueryParams{
+export default interface openAIQueryParams{
     background?: boolean,            // Can this model response run in the background?
     conversation?: any,              // The conversation that this response belongs to.
     include?: any,                   // Specify additional output data to include in the model response. See documentation for values
