@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   FlatList,
   Modal,
   ScrollView,
@@ -8,6 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+const API_LOCALHOST = "http://localhost:3000";
 
 export default function AssignmentManager() {
   //TODO: Make roles such that students can complete Assignments and teacher can create
@@ -41,6 +44,7 @@ export default function AssignmentManager() {
   >("text");
   const [problemOptions, setProblemOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const createAssignment = () => {
     if (assignmentName.trim()) {
@@ -100,6 +104,45 @@ export default function AssignmentManager() {
     setProblemOptions([]);
     setNewOption("");
   };
+
+  const diffQuestionGenerate = async () => {
+    try {
+      setIsGenerating(true);
+      const typeTitles = 
+              problemType === "text" ? "short-answer" :
+              problemType === "truefalse" ? "true/false" : "multiple-choice";
+
+      const prompt = `Write ONE ${difficulty} ${typeTitles} Algebra 1 math question.
+                      Ensure to return ONLY the question text, no other options, no answer, no steps. 
+                      Keep your questions to a limit of one sentence, or a max of 100 words.`;
+      
+      const gptRes = await fetch(`${API_LOCALHOST}/api/openai/query`, {
+        method: "POST",
+        headers: { "Content-Type" : "application/json"}, 
+        body: JSON.stringify({prompt}),
+      });
+
+
+
+
+      const jsonConvert = await gptRes.json().catch(() => null);
+      const textConvert = (jsonConvert?.response || "").trim();
+      if (textConvert)  {
+        setQuestion(textConvert)
+      }
+    }
+    catch{
+      Alert.alert("Quick AI failure");
+    }
+    finally {
+      setIsGenerating(false);
+    }
+  };
+
+
+
+
+
 
   const addOption = () => {
     if (newOption.trim() && !problemOptions.includes(newOption.trim())) {
@@ -218,13 +261,54 @@ export default function AssignmentManager() {
         <Modal visible={showAddProblem} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <ScrollView
-              style={{ flex: 1 }}
+              style={styles.modalScrollView}
               contentContainerStyle={{ justifyContent: "flex-end" }}
             >
               <View style={styles.modalContent}>
                 <Text style={styles.modalHeading}>Add Problem</Text>
+                <Text style = {styles.label}>Problem Type</Text>
+                <View style={styles.quickAIContainer}>
+                  <TouchableOpacity
+                    onPress={diffQuestionGenerate}
+                    disabled={isGenerating}
+                    style={[
+                      styles.modalButton,
+                      styles.confirmButton,
+                      styles.quickAIButton
+                    ]}
+                    >
+                      <Text style={styles.confirmButtonText}>
+                        {isGenerating ? "Generating..... " : `Click To Create Question \n(${difficulty})\n `}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-                <Text style={styles.label}>Problem Question</Text>
+
+                <View style={styles.difficultyButtons}>
+                  {(["text", "truefalse", "multiplechoice"] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      onPress={() => {
+                        setProblemType(type);
+                        setProblemOptions([]);
+                      }}
+                      style={[
+                        styles.diffButton,
+                        problemType === type && styles.diffButtonActive,
+                      ]}
+                  >
+                    <Text
+                        style={[
+                          styles.diffButtonText,
+                          problemType === type && styles.diffButtonTextActive,
+                        ]}
+                        >
+                          {getTypeLabel(type)}
+                        </Text>
+                  </TouchableOpacity>
+                  ))}
+                </View>
+
                 <TextInput
                   value={question}
                   onChangeText={setQuestion}
@@ -235,33 +319,6 @@ export default function AssignmentManager() {
                   placeholderTextColor="#9ca3af"
                 />
 
-                <Text style={styles.label}>Problem Type</Text>
-                <View style={styles.difficultyButtons}>
-                  {(["text", "truefalse", "multiplechoice"] as const).map(
-                    (type) => (
-                      <TouchableOpacity
-                        key={type}
-                        onPress={() => {
-                          setProblemType(type);
-                          setProblemOptions([]);
-                        }}
-                        style={[
-                          styles.diffButton,
-                          problemType === type && styles.diffButtonActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.diffButtonText,
-                            problemType === type && styles.diffButtonTextActive,
-                          ]}
-                        >
-                          {getTypeLabel(type)}
-                        </Text>
-                      </TouchableOpacity>
-                    )
-                  )}
-                </View>
 
                 {problemType === "multiplechoice" && (
                   <View>
@@ -666,5 +723,19 @@ const styles = {
     color: "white",
     fontWeight: "600" as "600",
     fontSize: 16,
+  },
+  quickAIContainer: {
+    alignItems: "center" as const,
+    padding: 12,
+  },
+  quickAIButton: {
+    alignSelf: "center" as const,
+    paddingVertical: 12,
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    justifyContent: "flex-end",
   },
 };

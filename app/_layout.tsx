@@ -23,14 +23,23 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === '(tabs)';
 
+    if (hasExplicitlyLoggedIn && !user) {
+      return;
+    }
+
     if (!user && inAuthGroup) {
       // User is not authenticated but trying to access protected routes
       console.log('Redirecting unauthenticated user to login');
       router.replace('/');
-    } else if (user && !inAuthGroup && hasExplicitlyLoggedIn) {
+      return;
+
+    } 
+    
+    if (user && !inAuthGroup) {
       // User is authenticated and has explicitly logged in, redirect to main app
       console.log('Redirecting authenticated user to main app');
       router.replace('/(tabs)');
+      return;
     }
   }, [user, loading, segments, router, hasExplicitlyLoggedIn]);
 
