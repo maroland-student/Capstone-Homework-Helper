@@ -163,4 +163,27 @@ export class OpenAIHandler {
             return "Error generating text.";
         }
     }
+
+    /**
+     * Generates an Algebra 1 word problem
+     * @returns A string containing the generated word problem
+     */
+    public static async generateAlgebra1Problem(): Promise<string> {
+        try {
+            const prompt = "Generate a single Algebra 1 word problem. Return only the problem text, no solutions or explanations.";
+            const response = await ai.chat.completions.create({
+                model: "gpt-5",
+                messages: [
+                    { role: "system", content: "You are a helpful math teacher that creates Algebra 1 word problems." },
+                    { role: "user", content: prompt },
+                ],
+            });
+
+            const text = response.choices[0]?.message?.content ?? "";
+            return text.trim();
+        } catch (err) {
+            ToggleLogs.log("Error generating Algebra 1 problem: " + err, LogLevel.CRITICAL);
+            return "Error generating math problem.";
+        }
+    }
 }
