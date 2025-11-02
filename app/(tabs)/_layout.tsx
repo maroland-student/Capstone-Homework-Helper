@@ -1,12 +1,22 @@
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
 
 export default function TabLayout() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const backgroundColor = Colors[colorScheme].background;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor,
+          borderTopWidth: 1,
+          borderTopColor: colorScheme === 'dark' ? '#2A2A2A' : '#E5E5EA',
+        },
+        tabBarActiveTintColor: Colors[colorScheme].tint,
+        tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
       }}>
       <Tabs.Screen
         name="index"
@@ -18,6 +28,12 @@ export default function TabLayout() {
         name="explore"
         options={{
           title: 'Explore',
+        }}
+      />
+      <Tabs.Screen
+        name="equations"
+        options={{
+          title: 'Equations',
         }}
       />
     </Tabs>
