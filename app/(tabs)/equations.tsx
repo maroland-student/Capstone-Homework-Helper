@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
@@ -9,12 +9,8 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function EquationsScreen() {
   const [problem, setProblem] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchMathProblem();
-  }, []);
 
   const fetchMathProblem = async () => {
     try {
@@ -56,11 +52,24 @@ export default function EquationsScreen() {
           <ThemedView style={styles.centerContent}>
             <ThemedText style={styles.errorText}>{error}</ThemedText>
           </ThemedView>
-        ) : (
+        ) : problem ? (
           <ThemedView style={styles.problemBox}>
             <ThemedText style={styles.problemText}>{problem}</ThemedText>
           </ThemedView>
+        ) : (
+          <ThemedView style={styles.centerContent}>
+            <ThemedText style={styles.emptyText}>Click "New Question" to get started!</ThemedText>
+          </ThemedView>
         )}
+      </ThemedView>
+      <ThemedView style={styles.buttonContainer}>
+        <TouchableOpacity 
+          style={styles.newQuestionButton}
+          onPress={fetchMathProblem}
+          disabled={loading}
+        >
+          <ThemedText style={styles.buttonText}>New Question</ThemedText>
+        </TouchableOpacity>
       </ThemedView>
     </ParallaxScrollView>
   );
@@ -81,7 +90,25 @@ const styles = StyleSheet.create({
   },
   problemContainer: {
     marginTop: 16,
-    marginBottom: 16,
+    marginBottom: 24,
+  },
+  buttonContainer: {
+    marginTop: 8,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  newQuestionButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 150,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   problemBox: {
     backgroundColor: 'rgba(128, 128, 128, 0.1)',
@@ -107,6 +134,10 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     color: '#FF3B30',
+  },
+  emptyText: {
+    fontSize: 14,
+    opacity: 0.7,
   },
   section: {
     gap: 8,
