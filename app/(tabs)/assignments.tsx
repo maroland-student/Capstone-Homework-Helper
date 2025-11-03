@@ -10,7 +10,6 @@ import {
 } from "react-native";
 
 export default function AssignmentManager() {
-  //TODO: Make roles such that students can complete Assignments and teacher can create
   type Problem = {
     id: number;
     question: string;
@@ -27,7 +26,16 @@ export default function AssignmentManager() {
     createdAt: string;
   };
 
+  type StudentSubmission = {
+    assignmentId: number;
+    answers: { [problemId: number]: string };
+    submittedAt: string;
+    score?: number;
+  };
+
+  const [role, setRole] = useState<"teacher" | "student">("teacher");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
   const [assignmentName, setAssignmentName] = useState("");
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
@@ -41,6 +49,11 @@ export default function AssignmentManager() {
   >("text");
   const [problemOptions, setProblemOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
+
+  const [studentAnswers, setStudentAnswers] = useState<{
+    [key: number]: string;
+  }>({});
+  const [showSubmission, setShowSubmission] = useState(false);
 
   const createAssignment = () => {
     if (assignmentName.trim()) {
@@ -76,8 +89,8 @@ export default function AssignmentManager() {
               problemType === "multiplechoice"
                 ? problemOptions
                 : problemType === "truefalse"
-                ? ["True", "False"]
-                : undefined,
+                  ? ["True", "False"]
+                  : undefined,
             difficulty,
           };
           return { ...a, problems: [...a.problems, newProblem] };
@@ -130,6 +143,43 @@ export default function AssignmentManager() {
     }
   };
 
+  const submitAssignment = () => {
+    if (!selectedAssignment) return;
+
+    let score = 0;
+    selectedAssignment.problems.forEach((problem) => {
+      const studentAnswer = studentAnswers[problem.id]?.trim().toLowerCase();
+      const correctAnswer = problem.answer.trim().toLowerCase();
+      if (studentAnswer === correctAnswer) {
+        score++;
+      }
+    });
+
+    const submission: StudentSubmission = {
+      assignmentId: selectedAssignment.id,
+      answers: studentAnswers,
+      submittedAt: new Date().toLocaleString(),
+      score,
+    };
+
+    setSubmissions([...submissions, submission]);
+    setShowSubmission(true);
+  };
+
+  const hasSubmitted = (assignmentId: number) => {
+    return submissions.some((s) => s.assignmentId === assignmentId);
+  };
+
+  const getSubmission = (assignmentId: number) => {
+    return submissions.find((s) => s.assignmentId === assignmentId);
+  };
+
+  const closeSubmissionView = () => {
+    setShowSubmission(false);
+    setSelectedAssignment(null);
+    setStudentAnswers({});
+  };
+
   const getDifficultyBadgeStyle = (diff: string) => {
     if (diff === "easy") return [styles.badge, styles.badgeEasy];
     if (diff === "medium") return [styles.badge, styles.badgeMedium];
@@ -148,7 +198,246 @@ export default function AssignmentManager() {
     return "Multiple Choice";
   };
 
-  if (selectedAssignment) {
+  if (role === "student" && selectedAssignment) {
+    const submission = getSubmission(selectedAssignment.id);
+    const isCompleted = submission !== undefined;
+
+    if (showSubmission && submission) {
+      return (
+        <ScrollView style={styles.container}>
+          <View style={styles.content}>
+            <Text style={styles.heading}>Assignment Submitted!</Text>
+            <View style={styles.scoreCard}>
+              <Text style={styles.scoreText}>Your Score</Text>
+              <Text style={styles.scoreNumber}>
+                {submission.score} / {selectedAssignment.problems.length}
+              </Text>
+              <Text style={styles.scorePercentage}>
+                {Math.round(
+                  (submission.score! / selectedAssignment.problems.length) * 100
+                )}
+                %
+              </Text>
+            </View>
+
+            <Text style={styles.listHeading}>Review Your Answers</Text>
+            <FlatList
+              data={selectedAssignment.problems}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => {
+                const studentAnswer = submission.answers[item.id];
+                const isCorrect =
+                  studentAnswer?.trim().toLowerCase() ===
+                  item.answer.trim().toLowerCase();
+
+                return (
+                  <View style={styles.problemCard}>
+                    <View style={styles.problemHeader}>
+                      <View style={getDifficultyBadgeStyle(item.difficulty)}>
+                        <Text style={getDifficultyTextStyle(item.difficulty)}>
+                          {item.difficulty.charAt(0).toUpperCase() +
+                            item.difficulty.slice(1)}
+                        </Text>
+                      </View>
+                      <View
+                        style={
+                          isCorrect
+                            ? styles.correctBadge
+                            : styles.incorrectBadge
+                        }
+                      >
+                        <Text
+                          style={
+                            isCorrect
+                              ? styles.correctText
+                              : styles.incorrectText
+                          }
+                        >
+                          {isCorrect ? "✓ Correct" : "✗ Incorrect"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.problemQuestion}>{item.question}</Text>
+                    <Text style={styles.problemAnswer}>
+                      <Text style={styles.answerLabel}>Your Answer: </Text>
+                      {studentAnswer || "No answer"}
+                    </Text>
+                    <Text style={styles.problemAnswer}>
+                      <Text style={styles.answerLabel}>Correct Answer: </Text>
+                      {item.answer}
+                    </Text>
+                  </View>
+                );
+              }}
+              scrollEnabled={false}
+            />
+
+            <TouchableOpacity
+              onPress={closeSubmissionView}
+              style={styles.addButton}
+            >
+              <Text style={styles.addButtonText}>Back to Assignments</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
+
+    return (
+      <ScrollView style={styles.container}>
+        <View style={styles.content}>
+          <TouchableOpacity onPress={() => setSelectedAssignment(null)}>
+            <Text style={styles.backButton}>← Back</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.heading}>{selectedAssignment.name}</Text>
+          <Text style={styles.subheading}>
+            {selectedAssignment.problems.length} problems
+          </Text>
+
+          {isCompleted ? (
+            <View style={styles.completedBanner}>
+              <Text style={styles.completedText}>✓ Completed</Text>
+              <TouchableOpacity onPress={() => setShowSubmission(true)}>
+                <Text style={styles.viewResultsButton}>View Results</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.listHeading}>Complete the Problems</Text>
+              <FlatList
+                data={selectedAssignment.problems}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item, index }) => (
+                  <View style={styles.problemCard}>
+                    <View style={styles.problemHeader}>
+                      <Text style={styles.problemNumber}>
+                        Problem {index + 1}
+                      </Text>
+                      <View style={getDifficultyBadgeStyle(item.difficulty)}>
+                        <Text style={getDifficultyTextStyle(item.difficulty)}>
+                          {item.difficulty.charAt(0).toUpperCase() +
+                            item.difficulty.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.problemQuestion}>{item.question}</Text>
+                    <Text style={styles.problemMeta}>
+                      <Text style={styles.answerLabel}>Type: </Text>
+                      {getTypeLabel(item.type)}
+                    </Text>
+
+                    {item.type === "text" && (
+                      <TextInput
+                        value={studentAnswers[item.id] || ""}
+                        onChangeText={(text) =>
+                          setStudentAnswers({
+                            ...studentAnswers,
+                            [item.id]: text,
+                          })
+                        }
+                        placeholder="Type your answer..."
+                        style={[styles.textInput, styles.studentInput]}
+                        multiline
+                        numberOfLines={3}
+                        placeholderTextColor="#9ca3af"
+                      />
+                    )}
+
+                    {item.type === "truefalse" && (
+                      <View style={styles.difficultyButtons}>
+                        {["True", "False"].map((opt) => (
+                          <TouchableOpacity
+                            key={opt}
+                            onPress={() =>
+                              setStudentAnswers({
+                                ...studentAnswers,
+                                [item.id]: opt,
+                              })
+                            }
+                            style={[
+                              styles.diffButton,
+                              studentAnswers[item.id] === opt &&
+                              styles.diffButtonActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.diffButtonText,
+                                studentAnswers[item.id] === opt &&
+                                styles.diffButtonTextActive,
+                              ]}
+                            >
+                              {opt}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {item.type === "multiplechoice" && item.options && (
+                      <View style={styles.optionsList}>
+                        {item.options.map((option, optIndex) => (
+                          <TouchableOpacity
+                            key={optIndex}
+                            onPress={() =>
+                              setStudentAnswers({
+                                ...studentAnswers,
+                                [item.id]: option,
+                              })
+                            }
+                            style={[
+                              styles.multipleChoiceOption,
+                              studentAnswers[item.id] === option &&
+                              styles.multipleChoiceOptionSelected,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.multipleChoiceText,
+                                studentAnswers[item.id] === option &&
+                                styles.multipleChoiceTextSelected,
+                              ]}
+                            >
+                              {option}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+                scrollEnabled={false}
+              />
+
+              <TouchableOpacity
+                onPress={submitAssignment}
+                style={[
+                  styles.addButton,
+                  Object.keys(studentAnswers).length !==
+                  selectedAssignment.problems.length && styles.disabledButton,
+                ]}
+                disabled={
+                  Object.keys(studentAnswers).length !==
+                  selectedAssignment.problems.length
+                }
+              >
+                <Text style={styles.addButtonText}>Submit Assignment</Text>
+              </TouchableOpacity>
+              {Object.keys(studentAnswers).length !==
+                selectedAssignment.problems.length && (
+                  <Text style={styles.warningText}>
+                    Please answer all problems before submitting
+                  </Text>
+                )}
+            </>
+          )}
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (role === "teacher" && selectedAssignment) {
     return (
       <ScrollView style={styles.container}>
         <View style={styles.content}>
@@ -383,49 +672,125 @@ export default function AssignmentManager() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.heading}>Assignments</Text>
-        <Text style={styles.subheading}>Create and manage assignments</Text>
+        <View style={styles.roleToggle}>
+          <TouchableOpacity
+            onPress={() => {
+              setRole("teacher");
+              setSelectedAssignment(null);
+              setStudentAnswers({});
+            }}
+            style={[
+              styles.roleButton,
+              role === "teacher" && styles.roleButtonActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.roleButtonText,
+                role === "teacher" && styles.roleButtonTextActive,
+              ]}
+            >
+              Teacher
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setRole("student");
+              setSelectedAssignment(null);
+              setStudentAnswers({});
+            }}
+            style={[
+              styles.roleButton,
+              role === "student" && styles.roleButtonActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.roleButtonText,
+                role === "student" && styles.roleButtonTextActive,
+              ]}
+            >
+              Student
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          onPress={() => setShowCreateAssignment(true)}
-          style={styles.addButton}
-        >
-          <Text style={styles.addButtonText}>+ Create Assignment</Text>
-        </TouchableOpacity>
+        <Text style={styles.heading}>
+          {role === "teacher" ? "Manage Assignments" : "My Assignments"}
+        </Text>
+        <Text style={styles.subheading}>
+          {role === "teacher"
+            ? "Create and manage assignments"
+            : "Complete your assignments"}
+        </Text>
+
+        {role === "teacher" && (
+          <TouchableOpacity
+            onPress={() => setShowCreateAssignment(true)}
+            style={styles.addButton}
+          >
+            <Text style={styles.addButtonText}>+ Create Assignment</Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.listHeading}>
-          Your Assignments ({assignments.length})
+          {role === "teacher" ? "Your Assignments" : "Available Assignments"} (
+          {assignments.length})
         </Text>
         {assignments.length === 0 ? (
           <Text style={styles.emptyState}>
-            No assignments yet. Create one above!
+            {role === "teacher"
+              ? "No assignments yet. Create one above!"
+              : "No assignments available yet."}
           </Text>
         ) : (
           <FlatList
             data={assignments}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => setSelectedAssignment(item)}
-                style={styles.assignmentCard}
-              >
-                <View style={styles.assignmentHeader}>
-                  <View>
-                    <Text style={styles.assignmentName}>{item.name}</Text>
-                    <Text style={styles.assignmentMeta}>
-                      {item.problems.length} problem
-                      {item.problems.length !== 1 ? "s" : ""} • {item.createdAt}
-                    </Text>
+            renderItem={({ item }) => {
+              const submission =
+                role === "student" ? getSubmission(item.id) : null;
+              const isCompleted = submission !== undefined;
+
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (role === "student" && isCompleted) {
+                      setSelectedAssignment(item);
+                      setShowSubmission(true);
+                    } else {
+                      setSelectedAssignment(item);
+                    }
+                  }}
+                  style={styles.assignmentCard}
+                >
+                  <View style={styles.assignmentHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.assignmentName}>{item.name}</Text>
+                      <Text style={styles.assignmentMeta}>
+                        {item.problems.length} problem
+                        {item.problems.length !== 1 ? "s" : ""} •{" "}
+                        {item.createdAt}
+                      </Text>
+                      {role === "student" && isCompleted && submission && (
+                        <Text style={styles.completedLabel}>
+                          ✓ Completed - Score: {submission.score}/
+                          {item.problems.length}
+                        </Text>
+                      )}
+                    </View>
+                    {role === "teacher" && (
+                      <TouchableOpacity
+                        onPress={() => deleteAssignment(item.id)}
+                        style={styles.assignmentDelete}
+                      >
+                        <Text style={styles.deleteButton}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                  <TouchableOpacity
-                    onPress={() => deleteAssignment(item.id)}
-                    style={styles.assignmentDelete}
-                  >
-                    <Text style={styles.deleteButton}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            )}
+                </TouchableOpacity>
+              );
+            }}
             scrollEnabled={false}
           />
         )}
@@ -482,12 +847,41 @@ const styles = {
     fontWeight: "600" as "600",
     marginBottom: 16,
   },
+  roleToggle: {
+    flexDirection: "row" as const,
+    gap: 8,
+    marginBottom: 24,
+    backgroundColor: "#e0f2fe",
+    borderRadius: 8,
+    padding: 4,
+  },
+  roleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: "center" as const,
+  },
+  roleButtonActive: {
+    backgroundColor: "#2563eb",
+  },
+  roleButtonText: {
+    fontSize: 16,
+    fontWeight: "600" as "600",
+    color: "#6b7280",
+  },
+  roleButtonTextActive: {
+    color: "white",
+  },
   addButton: {
     backgroundColor: "#2563eb",
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
     alignItems: "center" as const,
+  },
+  disabledButton: {
+    backgroundColor: "#9ca3af",
   },
   addButtonText: { color: "white", fontSize: 16, fontWeight: "600" as const },
   listHeading: {
@@ -522,6 +916,31 @@ const styles = {
     marginBottom: 4,
   },
   assignmentMeta: { fontSize: 13, color: "#6b7280" },
+  completedLabel: {
+    fontSize: 13,
+    color: "#16a34a",
+    fontWeight: "600" as "600",
+    marginTop: 4,
+  },
+  completedBanner: {
+    backgroundColor: "#dcfce7",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+  },
+  completedText: {
+    fontSize: 16,
+    color: "#166534",
+    fontWeight: "600" as "600",
+  },
+  viewResultsButton: {
+    fontSize: 14,
+    color: "#2563eb",
+    fontWeight: "600" as "600",
+  },
   problemCard: {
     backgroundColor: "white",
     borderRadius: 8,
@@ -534,6 +953,11 @@ const styles = {
     justifyContent: "space-between" as const,
     alignItems: "center" as const,
     marginBottom: 12,
+  },
+  problemNumber: {
+    fontSize: 14,
+    fontWeight: "600" as "600",
+    color: "#2563eb",
   },
   problemMeta: {
     fontSize: 13,
@@ -556,6 +980,28 @@ const styles = {
     fontWeight: "600" as "600",
   },
   badgeTextHard: { color: "#991b1b", fontSize: 12, fontWeight: "600" as "600" },
+  correctBadge: {
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  incorrectBadge: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  correctText: {
+    color: "#166534",
+    fontSize: 12,
+    fontWeight: "600" as "600",
+  },
+  incorrectText: {
+    color: "#991b1b",
+    fontSize: 12,
+    fontWeight: "600" as "600",
+  },
   deleteButton: { fontSize: 15, color: "#ef4444", fontWeight: "600" as "600" },
   problemQuestion: {
     fontSize: 16,
@@ -563,8 +1009,60 @@ const styles = {
     color: "#1f2937",
     marginBottom: 8,
   },
-  problemAnswer: { fontSize: 14, color: "#4b5563" },
+  problemAnswer: { fontSize: 14, color: "#4b5563", marginBottom: 4 },
   answerLabel: { fontWeight: "600" as "600" },
+  studentInput: {
+    marginTop: 8,
+  },
+  multipleChoiceOption: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: "#e5e7eb",
+  },
+  multipleChoiceOptionSelected: {
+    backgroundColor: "#dbeafe",
+    borderColor: "#2563eb",
+  },
+  multipleChoiceText: {
+    fontSize: 14,
+    color: "#1f2937",
+  },
+  multipleChoiceTextSelected: {
+    fontWeight: "600" as "600",
+    color: "#2563eb",
+  },
+  scoreCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: "center" as const,
+    elevation: 3,
+  },
+  scoreText: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginBottom: 8,
+  },
+  scoreNumber: {
+    fontSize: 48,
+    fontWeight: "bold" as "bold",
+    color: "#2563eb",
+    marginBottom: 4,
+  },
+  scorePercentage: {
+    fontSize: 24,
+    fontWeight: "600" as "600",
+    color: "#16a34a",
+  },
+  warningText: {
+    color: "#ef4444",
+    textAlign: "center" as "center",
+    fontSize: 14,
+    marginTop: 8,
+  },
   label: {
     fontSize: 14,
     fontWeight: "600" as "600",
@@ -667,4 +1165,4 @@ const styles = {
     fontWeight: "600" as "600",
     fontSize: 16,
   },
-};
+}
