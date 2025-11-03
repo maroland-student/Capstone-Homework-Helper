@@ -3,6 +3,7 @@ import { emailOTPClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import * as SecureStore from "expo-secure-store";
 
+
 // Create the auth client
 export const authClient = createAuthClient({
   baseURL: "http://localhost:3000",
