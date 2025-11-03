@@ -1,6 +1,8 @@
 import { expoClient } from "@better-auth/expo/client";
+import { emailOTPClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import * as SecureStore from "expo-secure-store";
+
 
 // Create the auth client
 export const authClient = createAuthClient({
@@ -11,6 +13,7 @@ export const authClient = createAuthClient({
       storagePrefix: "capstone",
       storage: SecureStore,
     }),
+    emailOTPClient(),
   ],
 });
 
@@ -22,3 +25,6 @@ export const {
   useSession,
   getSession
 } = authClient;
+
+// Export email OTP methods
+export const { emailOtp } = authClient;

@@ -7,7 +7,8 @@
 // /api/ai/classify
 
 import { IncomingMessage, ServerResponse } from 'http';
-import { SystemsOfEquationsSubject } from '../../models/problem-classifications';
+import { parse } from 'url';
+import { StepByStepSolution, SystemsOfEquationsSubject } from '../../models/problem-classifications';
 import Logs, { LogLevel } from '../../utilities/toggle_logs';
 import UrlUtils from '../../utilities/url_utils';
 
@@ -23,8 +24,8 @@ const routes = {
     'get-steps': {
         expectedMethods:['GET'],
         handler: getSteps,
-        queryParameters: [],
-        requireBody: false,
+        queryParameters: ['problem-id'],
+        requireBody: true,
     },
     'classify': {
         expectedMethods:['GET'],
@@ -62,6 +63,29 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
                 return;
             }
 
+            if(route.queryParameters && route.queryParameters.length > 0){
+                // Check required params
+                const queryParams = route.queryParameters;
+                const url = parse(req.url || "", true);
+
+                for(let i = 0; i < route.queryParameters.length; i++)
+                {
+                    const param = route.queryParameters[i];
+                    Logs.log("Checking for parameter " + param);
+
+                    const value = url.query[param];
+                    if(value === undefined){
+                        Logs.log("Missing required parameter " + param);
+
+                        await UrlUtils.sendJson(res, 400, {
+                            error: "Bad request. Missing query parameters"
+                        })
+                        
+                        return;
+                    }
+                }
+            }
+
             if(route.requireBody && !UrlUtils.hasBody(req)){
                 // Missing required body
                 Logs.log("Missing body for endpoint " + expected);
@@ -87,10 +111,32 @@ async function getSolution(req: IncomingMessage, res: ServerResponse): Promise<v
 }
 
 async function getSteps(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    await UrlUtils.simulateDelay(res, 200, 200, JSON.stringify({
-        x: 6,
-        y: 7,
-    }))
+    const url = parse(req.url || "", true);
+    const problemIdString = url.query['problem-id']
+    
+    // Check for valid problem id parameter
+    const problemId = parseInt(
+        Array.isArray(problemIdString) ? problemIdString[0] : problemIdString || ""
+    );
+
+    if(isNaN(problemId)){
+        await UrlUtils.sendJson(res, 400, {
+            error: "Bad request, missing query parameters"
+        })
+        return;
+    }
+
+    // Mock steps object
+    const steps: StepByStepSolution = {
+        id: -1,
+        problemId: problemId,
+        steps: [
+            "Draw a circle",
+            "Draw the rest of the owl"
+        ]
+    }
+
+    await UrlUtils.simulateDelay(res, 5000, 200, JSON.stringify(steps))
 }
 
 async function classify(req: IncomingMessage, res: ServerResponse): Promise<void> {
