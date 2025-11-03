@@ -54,6 +54,53 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
         return;
     }
 
+    if (req.url?.startsWith('/api/openai/extract-equation')) {
+        ToggleLogs.log('Handling equation extraction request..', LogLevel.INFO);
+
+        if (req.method !== 'POST') {
+            ToggleLogs.log(`Extract equation endpoint only handles POST. Received: ${req.method}`, LogLevel.WARN);
+            UrlUtils.sendJson(res, 405, {
+                error: 'Method Not Allowed',
+                message: 'Only POST requests are allowed for this endpoint.',
+            });
+            return;
+        }
+
+        const body = (await UrlUtils.getBody(req)) as { problem: string };
+        if (!body || typeof body !== 'object' || typeof body.problem !== 'string') {
+            ToggleLogs.log(`Invalid request body for extract equation endpoint. Body: ${body}`, LogLevel.WARN);
+            UrlUtils.sendJson(res, 400, {
+                error: 'Bad Request',
+                message: 'Request body must contain a "problem" string field.',
+            });
+            return;
+        }
+
+        try {
+            ToggleLogs.log(`Extracting equation from problem: ${body.problem.substring(0, 100)}...`, LogLevel.INFO);
+            OpenAIHandler.extractEquation(body.problem)
+                .then((result) => {
+                    ToggleLogs.log(`Extracted equation: ${result.equation}`, LogLevel.DEBUG);
+                    UrlUtils.sendJson(res, 200, result);
+                })
+                .catch((err: any) => {
+                    ToggleLogs.log(`Error extracting equation: ${err}`, LogLevel.CRITICAL);
+                    UrlUtils.sendJson(res, 500, {
+                        error: 'Internal Server Error',
+                        message: 'An error occurred while extracting the equation.',
+                    });
+                });
+        } catch (err: any) {
+            ToggleLogs.log(`Error processing equation extraction request: ${err}`, LogLevel.CRITICAL);
+            UrlUtils.sendJson(res, 500, {
+                error: 'Internal Server Error',
+                message: 'An error occurred while processing the request.',
+            });
+        }
+
+        return;
+    }
+
     if (req.url?.startsWith('/api/openai/query')) {
         ToggleLogs.log('Handling OpenAI query request..', LogLevel.INFO);
 
