@@ -7,7 +7,7 @@ const requiredEnvVars = ['DB_USERNAME', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DA
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  console.error('❌ Missing required environment variables:', missingVars.join(', '));
+  console.error('Missing required environment variables:', missingVars.join(', '));
   console.error('Please check your .env file and ensure all database variables are set.');
   process.exit(1);
 }
