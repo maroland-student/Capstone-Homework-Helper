@@ -1,15 +1,17 @@
 import { View } from "react-native";
 
-type ProgressBarProps = {
+interface ProgressBarProps {
     label: string,
     value: number,
     color: string,
-
 }
 
-export default function ProgressBar(props: ProgressBarProps) {
+export default function ProgressBar({
+    label,
+    value,
+    color
+}: ProgressBarProps){
     // Data validation
-    var value = props.value;
     if (value < 0)
         value = 0;
     if (value > 100)
@@ -22,7 +24,7 @@ export default function ProgressBar(props: ProgressBarProps) {
                 style={{
                     width: `${value}%`,
                     height: 8,
-                    backgroundColor: `${props.color}`,
+                    backgroundColor: `${color}`,
                     borderRadius: 4,
                 }}
             />
