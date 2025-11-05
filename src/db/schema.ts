@@ -1,4 +1,4 @@
-import { boolean, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["teacher", "student"]);
 
@@ -50,5 +50,52 @@ export const verificationsTable = pgTable("verification", {
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
+export const assignmentsTable = pgTable("assignment", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  teacherId: text("teacherId")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const problemsTable = pgTable("problem", {
+  id: text("id").primaryKey(),
+  assignmentId: text("assignmentId")
+    .notNull()
+    .references(() => assignmentsTable.id, { onDelete: "cascade" }),
+  question: text("question").notNull(),
+  type: text("type").notNull(),
+  answer: text("answer").notNull(),
+  options: jsonb("options"),
+  difficulty: text("difficulty").notNull(),
+  orderIndex: integer("orderIndex").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const submissionsTable = pgTable("submission", {
+  id: text("id").primaryKey(),
+  assignmentId: text("assignmentId")
+    .notNull()
+    .references(() => assignmentsTable.id, { onDelete: "cascade" }),
+  studentId: text("studentId")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  answers: jsonb("answers").notNull(),
+  score: integer("score").notNull(),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+});
+
+// Type exports
 export type User = typeof usersTable.$inferSelect;
 export type NewUser = typeof usersTable.$inferInsert;
+
+export type Assignment = typeof assignmentsTable.$inferSelect;
+export type NewAssignment = typeof assignmentsTable.$inferInsert;
+
+export type Problem = typeof problemsTable.$inferSelect;
+export type NewProblem = typeof problemsTable.$inferInsert;
+
+export type Submission = typeof submissionsTable.$inferSelect;
+export type NewSubmission = typeof submissionsTable.$inferInsert;
