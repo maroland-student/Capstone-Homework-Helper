@@ -8,9 +8,12 @@ import { ThemedView } from '@/components/themed-view';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
+// CAN ADJUST LATER
+const MAX_HINTS = 3;
+
 interface EquationData {
   equation: string;
-  substitutedEquation: string;
+  newEquation: string;
   variables: string[];
 }
 
@@ -20,12 +23,18 @@ export default function EquationsScreen() {
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hintTier, setHintTier] = useState<number>(0);
 
   const fetchMathProblem = async () => {
     try {
       setLoading(true);
       setError(null);
       setEquationData(null);
+
+
+      // STARTS folded up
+      setHintTier(0);
+
       
       const response = await fetch(`${API_BASE_URL}/api/openai/math-problem`);
       
@@ -48,12 +57,31 @@ export default function EquationsScreen() {
           body: JSON.stringify({ problem: fullProblem }),
         });
 
+
+            // changes just to include fallback state 
         if (extractResponse.ok) {
           const extractedData = await extractResponse.json();
-          if (extractedData.equation) {
-            setEquationData(extractedData);
+          const { equation, substitutedEquation, variables } = extractedData ?? {};
+          if (typeof equation == 'string' && equation.trim()) {
+            setEquationData({
+              // Just leaving it as an empty array/string until next sprint 4 -> GPT filtering
+
+              equation: equation.trim(),
+              newEquation: typeof substitutedEquation === 'string' ? 
+                        substitutedEquation 
+                          : '',
+              variables: Array.isArray(variables) ? 
+                        variables.filter(entryVar => typeof entryVar === 'string') 
+                        : [],
+            });
           }
-        }
+
+          // Preventing the immediate state updating (still temp)
+          else {
+            setEquationData(null);
+          }
+          }
+        
       } catch (extractErr) {
         console.error('Error extracting equation:', extractErr);
         // Don't show error for extraction failures, just continue without equation
@@ -67,6 +95,15 @@ export default function EquationsScreen() {
       setLoading(false);
     }
   };
+
+  const showNextHint = () => setHintTier((prev) => Math.min(MAX_HINTS, prev + 1));
+  const resetHints = () => setHintTier(0);
+
+
+
+  const hintsRemaining = !!equationData && !!equationData.equation;
+
+
 
   return (
     <ParallaxScrollView
@@ -101,22 +138,83 @@ export default function EquationsScreen() {
               </ThemedView>
             )}
 
-            {equationData && equationData.equation && (
+              {/* wraps title, buttons, all other content  */}
+            <ThemedView style={styles.hintsAllContainer}>
+
+                {/* has text 'HINTS'  */}
+              <ThemedView style={styles.hintHeaderContainer}>
+
+
+                <ThemedText type="subtitle" style={styles.hintTitle}> HINTS </ThemedText>
+                  <ThemedText style={styles.hintCounter}>
+
+
+                    {hintTier}/{MAX_HINTS} SHOWN
+                  </ThemedText>
+              </ThemedView>
+
+
+              {/*  Just in case GPT is being slow and the user gets the user doesn't see anything yet */}
+              {!hintsRemaining && !extracting && (
+                <ThemedText style={styles.hintPreLoad}>
+                  HINTS APPEAR AFTER EQUATION IS EXTRACTED
+                </ThemedText>
+              )}
+
+
+              {/* Greyed out for now, TODO: Spam /rate limiter here!   */}
+              <TouchableOpacity
+                style={[
+                  styles.hintButton,
+                  (!hintsRemaining || hintTier >= MAX_HINTS ) && styles.hintButtonDisabled,
+
+                ]}
+
+
+
+                onPress={showNextHint}
+                disabled={!hintsRemaining || hintTier >=MAX_HINTS}
+                >
+
+                <ThemedText style={styles.buttonText}>
+                  {hintTier < MAX_HINTS ? 'Show Next hint' : 'All hints have been shown. No more available.'}
+                </ThemedText>
+
+                </TouchableOpacity>
+
+                {hintTier > 0 && (
+                  <TouchableOpacity style={styles.hintResetButton} onPress={resetHints}>
+                    <ThemedText style={styles.hintResetButtonText}> RESET ALL HINTS </ThemedText>
+                  </TouchableOpacity>
+                )}
+
+
+            </ThemedView>
+
+            {/*  Added extra 'and' condition to each of the states. 3 for now  */}
+
+
+            {equationData && equationData.equation && hintTier >= 1 && (
               <ThemedView style={styles.equationContainer}>
                 <ThemedText type="subtitle" style={styles.equationLabel}>
                   Extracted Equation:
                 </ThemedText>
+
+
                 
                 {/* Template Equation */}
                 <ThemedView style={styles.equationBox}>
-                  <ThemedText style={styles.equationTitle}>Template:</ThemedText>
+                  <ThemedText style={styles.equationTitle}> HINT/Screen 1 - Template:</ThemedText>
                   <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
                 </ThemedView>
 
+
+
+
                 {/* Variables List */}
-                {equationData.variables && equationData.variables.length > 0 && (
+                {hintTier >=2 && equationData.variables && equationData.variables.length > 0 && (
                   <ThemedView style={styles.variablesBox}>
-                    <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
+                    <ThemedText style={styles.equationTitle}>HINT/Screen 2: - Variables:</ThemedText>
                     <View style={styles.variablesList}>
                       {equationData.variables.map((variable, index) => (
                         <View key={index} style={styles.variableItem}>
@@ -127,11 +225,12 @@ export default function EquationsScreen() {
                   </ThemedView>
                 )}
 
+              
                 {/* Substituted Equation */}
-                {equationData.substitutedEquation && (
+                {hintTier >=MAX_HINTS  && equationData.newEquation && (
                   <ThemedView style={styles.equationBox}>
-                    <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
-                    <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
+                    <ThemedText style={styles.equationTitle}>HINT/Screen 3 - With Values:</ThemedText>
+                    <LaTeXRenderer equation={equationData.newEquation} style={styles.latexRenderer} />
                   </ThemedView>
                 )}
               </ThemedView>
@@ -203,6 +302,68 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+
+
+
+  hintsAllContainer: {
+    gap: 8,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    borderWidth: 1,
+    borderRadius: 10,
+    borderColor: 'rgba(128, 128, 128, 0.4)',
+    padding: 12,
+  },
+  hintHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 5,
+  },
+  hintTitle: {
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+
+
+  hintCounter: { 
+    opacity: 0.8, 
+    fontSize: 12
+  },
+  hintPreLoad: { 
+    opacity: 0.8, 
+    fontSize: 12
+  },
+
+  hintButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.3)',
+    borderColor: 'rgba(0, 122, 255, 0.3)',
+    borderRadius:5,
+    padding: 10,
+    alignItems: 'center',
+
+  },
+  hintButtonDisabled : {
+    backgroundColor: 'rgba(0, 122, 255, 0.20)',
+
+  },
+
+  hintResetButton: {
+    marginTop: 10,
+    padding: 5,
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(0,122, 255, 0.30)',
+    backgroundColor: 'rgba(0, 122, 255, 0.5)',
+  },
+  hintResetButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#007AFF'
+
+  },
+
+
   equationContainer: {
     gap: 16,
   },
