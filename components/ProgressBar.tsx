@@ -32,9 +32,9 @@ export default function ProgressBar({
     const [containerWidth, setContainerWidth] = useState(0);
     const [barWidth, setBarWidth] = useState(0);
 
-    var displayValue = value;
-    var midRadius = borderRadius;
-    var opacity = 1;
+    let displayValue = value;
+    let midRadius = borderRadius;
+    let opacity = 1;
 
     if(containerWidth - barWidth <= borderRadius)
         midRadius = borderRadius - containerWidth + barWidth;
