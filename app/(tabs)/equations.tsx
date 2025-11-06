@@ -8,6 +8,7 @@ import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { parseEquationData } from '@/utilities/equationParser';
+import { validateEquationData } from '@/utilities/equationValidator';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -46,6 +47,47 @@ export default function EquationsScreen() {
         equationData.variables
       );
       console.log('Equation parsed successfully');
+
+      // Validate the equation data before saving
+      const validation = validateEquationData(
+        equationData.equation,
+        equationData.substitutedEquation,
+        equationData.variables,
+        parsedData
+      );
+
+      // Log validation results
+      if (validation.errors.length > 0) {
+        console.error('Equation validation errors:', validation.errors);
+      }
+      if (validation.warnings.length > 0) {
+        console.warn('Equation validation warnings:', validation.warnings);
+      }
+
+      // For critical errors, show warning but allow save
+      if (!validation.isValid && validation.errors.length > 0) {
+        const errorMessage = `Validation found issues:\n\n${validation.errors.join('\n')}${validation.warnings.length > 0 ? '\n\nWarnings:\n' + validation.warnings.join('\n') : ''}\n\nYou can still save, but the data may not work correctly in a calculator.`;
+        
+        if (Platform.OS === 'web') {
+          const shouldContinue = window.confirm(
+            `${errorMessage}\n\nDo you want to save anyway?`
+          );
+          if (!shouldContinue) {
+            setSaving(false);
+            return;
+          }
+        } else {
+          Alert.alert(
+            'Validation Issues Found',
+            errorMessage + '\n\nSaving anyway...',
+            [{ text: 'OK' }]
+          );
+        }
+      } else if (validation.warnings.length > 0) {
+        console.log('Validation passed with warnings:', validation.warnings);
+      } else {
+        console.log('Equation validation passed successfully');
+      }
 
       // Create JSON string
       const jsonString = JSON.stringify(parsedData, null, 2);
@@ -214,8 +256,53 @@ export default function EquationsScreen() {
         if (extractResponse.ok) {
           const extractedData = await extractResponse.json();
           if (extractedData.equation) {
+            // Validate the extracted equation data before using it
+            const parsedData = parseEquationData(
+              extractedData.equation,
+              extractedData.substitutedEquation,
+              extractedData.variables
+            );
+            
+            const validation = validateEquationData(
+              extractedData.equation,
+              extractedData.substitutedEquation,
+              extractedData.variables,
+              parsedData
+            );
+            
+            // Log validation results
+            if (validation.errors.length > 0) {
+              console.error('AI extraction validation errors:', validation.errors);
+              // Show error to user but still allow them to see what was extracted
+              const errorMessage = `Equation extraction has issues:\n${validation.errors.join('\n')}\n\nYou may need to try again or the equation may not work correctly in a calculator.`;
+              setError(errorMessage);
+            } else {
+              // Clear any previous errors if validation passes
+              setError(null);
+              
+              if (validation.warnings.length > 0) {
+                console.warn('AI extraction validation warnings:', validation.warnings);
+                // Show warning but allow use
+                if (Platform.OS !== 'web') {
+                  Alert.alert(
+                    'Extraction Warning',
+                    `The extracted equation has some warnings:\n${validation.warnings.join('\n')}\n\nYou can still use it, but it may need correction.`,
+                    [{ text: 'OK' }]
+                  );
+                }
+              } else {
+                console.log('AI extraction validation passed');
+              }
+            }
+            
+            // Set the equation data even if there are warnings, let user see it
             setEquationData(extractedData);
+          } else {
+            setError('No equation was extracted from the problem. Please try again.');
           }
+        } else {
+          const errorData = await extractResponse.json().catch(() => ({}));
+          setError(`Failed to extract equation: ${errorData.message || 'Unknown error'}`);
         }
       } catch (extractErr) {
         console.error('Error extracting equation:', extractErr);
