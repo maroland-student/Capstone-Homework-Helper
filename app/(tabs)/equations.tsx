@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { LaTeXRenderer } from '@/components/LaTeXRenderer';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -10,6 +10,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 // CAN ADJUST LATER
 const MAX_HINTS = 3;
+const HINTS_UNLOCK = 3;
 
 interface EquationData {
   equation: string;
@@ -24,6 +25,19 @@ export default function EquationsScreen() {
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hintTier, setHintTier] = useState<number>(0);
+  const [answer, setAnswer] = useState('');
+  const [wrongAttempts, setWrongAttempts] = useState(0);
+  const [hintsUnlocked, setHintsUnlocked] = useState(false);
+
+
+  useEffect(() => {
+    if (!hintsUnlocked && wrongAttempts >= HINTS_UNLOCK) {
+      setHintsUnlocked(true);
+    }
+
+  }, 
+
+  [wrongAttempts, hintsUnlocked]);
 
   const fetchMathProblem = async () => {
     try {
@@ -34,6 +48,12 @@ export default function EquationsScreen() {
 
       // STARTS folded up
       setHintTier(0);
+      // 180
+      setAnswer('');
+      setWrongAttempts(0);
+
+
+      setHintsUnlocked(false);
 
       
       const response = await fetch(`${API_BASE_URL}/api/openai/math-problem`);
@@ -99,12 +119,16 @@ export default function EquationsScreen() {
   const showNextHint = () => setHintTier((prev) => Math.min(MAX_HINTS, prev + 1));
   const resetHints = () => setHintTier(0);
 
-
-
   const hintsRemaining = !!equationData && !!equationData.equation;
 
+  const meetsYesNo = hintsUnlocked || wrongAttempts >= HINTS_UNLOCK;
+  const unlockStepsLeft = Math.max(0, HINTS_UNLOCK - wrongAttempts);
 
 
+  const onSubmitAnswer = () => {
+    setWrongAttempts(n => n +1);
+    setAnswer('');
+  };
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#E8F0FE', dark: '#0F172A' }}
@@ -138,6 +162,39 @@ export default function EquationsScreen() {
               </ThemedView>
             )}
 
+            {/*  DEFAULTING TO AN 'ALWAYS WRONG' FOR TESTING (simming hint restriction / allowing)    */}
+
+            <ThemedView style={styles.answerContainer}>
+              <ThemedText style={styles.answerLabel}> User Answered: (demo/test): </ThemedText>
+              <View style={styles.answerTitle}>
+                <TextInput
+                  value={answer}
+                  onChangeText={setAnswer}
+                  placeholder="Please Enter your Answer... "
+                  style={styles.answerInput}
+                  onSubmitEditing={onSubmitAnswer}
+                />
+
+
+                <TouchableOpacity
+                  onPress={onSubmitAnswer}
+                  style={styles.submitAnswerButton}
+                >
+
+
+                  <ThemedText style={styles.submitAnswerText}> SUBMIT </ThemedText>
+                </TouchableOpacity>
+              </View>
+
+
+
+              
+
+                      <ThemedText style={styles.attemptsText}>
+                        Wrong attempts: <ThemedText style={styles.attemptsTextTitle}>{wrongAttempts}</ThemedText>
+                      </ThemedText>
+            </ThemedView>
+
               {/* wraps title, buttons, all other content  */}
             <ThemedView style={styles.hintsAllContainer}>
 
@@ -153,6 +210,14 @@ export default function EquationsScreen() {
                   </ThemedText>
               </ThemedView>
 
+              {!meetsYesNo ? (
+                <ThemedText style={styles.attemptsYesNoText}>
+                  HINTS UNLOCK AFTER {HINTS_UNLOCK}, wrong attempt{Number(HINTS_UNLOCK) === 1 ? '' : 's'}.
+                    {unlockStepsLeft} more to go. Answer Carefully! 
+                </ThemedText>
+              ) : (
+                <ThemedText style={styles.attemptsYesNoText}> HINTS UNLOCKED. Click to reveal next tier... </ThemedText>
+              )}
 
               {/*  Just in case GPT is being slow and the user gets the user doesn't see anything yet */}
               {!hintsRemaining && !extracting && (
@@ -166,14 +231,11 @@ export default function EquationsScreen() {
               <TouchableOpacity
                 style={[
                   styles.hintButton,
-                  (!hintsRemaining || hintTier >= MAX_HINTS ) && styles.hintButtonDisabled,
+                  (!hintsRemaining || hintTier >= MAX_HINTS || !meetsYesNo ) && styles.hintButtonDisabled,
 
                 ]}
-
-
-
                 onPress={showNextHint}
-                disabled={!hintsRemaining || hintTier >=MAX_HINTS}
+                disabled={!hintsRemaining || hintTier >=MAX_HINTS || !meetsYesNo}
                 >
 
                 <ThemedText style={styles.buttonText}>
@@ -188,11 +250,9 @@ export default function EquationsScreen() {
                   </TouchableOpacity>
                 )}
 
-
             </ThemedView>
 
             {/*  Added extra 'and' condition to each of the states. 3 for now  */}
-
 
             {equationData && equationData.equation && hintTier >= 1 && (
               <ThemedView style={styles.equationContainer}>
@@ -304,7 +364,64 @@ const styles = StyleSheet.create({
   },
 
 
+  answerContainer : {
+    gap: 8, 
+    padding: 12,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    borderRadius: 10,
+    borderColor: 'rgba(128, 128, 128, 0.3)',
+  },
 
+
+  answerLabel: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  answerTitle: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+
+
+  answerInput: {
+    flex: 1,
+    borderColor: 'rgba(128, 128, 128, 0.6)',
+    borderWidth: 2,
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 1)',
+  },
+  submitAnswerButton: {
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    borderColor: 'rgba(0, 122, 255, 0.5)',
+    backgroundColor: 'rgba(0, 122, 255, 0.25)',
+  },
+
+
+
+
+  submitAnswerText: {
+    color: 'white',
+    fontWeight: 'bold'
+  },
+  attemptsText: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  attemptsTextTitle: {
+    fontWeight: '800',
+  },
+
+
+
+
+  attemptsYesNoText: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
   hintsAllContainer: {
     gap: 8,
     backgroundColor: 'rgba(128, 128, 128, 0.1)',
