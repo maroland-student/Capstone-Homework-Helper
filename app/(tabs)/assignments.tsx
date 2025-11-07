@@ -24,6 +24,9 @@ export default function AssignmentManager() {
     name: string;
     problems: Problem[];
     createdAt: string;
+    subjectName: string;
+    
+
   };
 
   type StudentSubmission = {
@@ -55,6 +58,20 @@ export default function AssignmentManager() {
   }>({});
   const [showSubmission, setShowSubmission] = useState(false);
 
+  const SUBJECT_OPTIONS = [
+    "SER 401",
+    "SER 402",
+    "SER 460",
+    "CSE 460",
+    "SER 480",
+    "MAT 266",
+    "MAT 267",
+  ];
+  const[selectedSubjectName, setSelectedSubjectName] = useState<string>(SUBJECT_OPTIONS[0]);
+  const[showSubjectOptions, setShowSubjectOptions] = useState<boolean>(false);
+
+  
+
   const createAssignment = () => {
     if (assignmentName.trim()) {
       const newAssignment: Assignment = {
@@ -62,9 +79,14 @@ export default function AssignmentManager() {
         name: assignmentName.trim(),
         problems: [],
         createdAt: new Date().toLocaleDateString(),
+        subjectName: selectedSubjectName,
+
+
       };
       setAssignments([...assignments, newAssignment]);
       setAssignmentName("");
+
+      setSelectedSubjectName(SUBJECT_OPTIONS[0]);
       setShowCreateAssignment(false);
     }
   };
@@ -295,6 +317,15 @@ export default function AssignmentManager() {
             {selectedAssignment.problems.length} problems
           </Text>
 
+
+          {/*  Pops up for all 'Roles' available for now - 
+               Even if user is not truly assigned to that   */}
+          <Text style={styles.subjectLabelOnCard}>
+            Class: {selectedAssignment.subjectName ?? "Unassigned"}
+          </Text>
+
+
+
           {isCompleted ? (
             <View style={styles.completedBanner}>
               <Text style={styles.completedText}>✓ Completed</Text>
@@ -448,6 +479,11 @@ export default function AssignmentManager() {
           <Text style={styles.heading}>{selectedAssignment.name}</Text>
           <Text style={styles.subheading}>
             {selectedAssignment.problems.length} problems
+          </Text>
+
+
+          <Text style={styles.subjectLabelOnCard}>
+            Class: {selectedAssignment.subjectName ?? "Unassigned"}
           </Text>
 
           <TouchableOpacity
@@ -772,6 +808,14 @@ export default function AssignmentManager() {
                         {item.problems.length !== 1 ? "s" : ""} •{" "}
                         {item.createdAt}
                       </Text>
+
+                      <Text style={styles.subjectLabelOnCard}>
+                        Class: {item.subjectName ?? "Unassigned"}
+                      </Text>
+
+
+
+
                       {role === "student" && isCompleted && submission && (
                         <Text style={styles.completedLabel}>
                           ✓ Completed - Score: {submission.score}/
@@ -809,6 +853,42 @@ export default function AssignmentManager() {
               style={styles.textInput}
               placeholderTextColor="#9ca3af"
             />
+
+            <Text style={styles.label}>Add the Assignment to a Subject....</Text>
+            <TouchableOpacity
+              onPress={() => setShowSubjectOptions((s) => !s)}
+              style={styles.dropdownMainBar}
+              activeOpacity={0.8}
+              >
+
+                <Text style={styles.dropdownText}>{selectedSubjectName}</Text>
+                      {/*  ** Good place for a custom image - tailwind in sprint 4  */}
+                <Text style={styles.dropdownArrowSymbol}> ⬇︎ </Text>
+              </TouchableOpacity>
+
+
+              {showSubjectOptions && (
+                <View style={styles.dropdownListOptions}>
+                  {SUBJECT_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => {
+
+
+                        setSelectedSubjectName(opt);
+                        setShowSubjectOptions(false);
+
+
+                      }}
+
+                      style={styles.dropdownItem}
+                      activeOpacity={0.6}
+                      >
+                        <Text style={styles.dropdownItemText}>{opt}</Text>
+                      </TouchableOpacity>
+                  ))}
+                  </View>
+              )}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1165,4 +1245,53 @@ const styles = {
     fontWeight: "600" as "600",
     fontSize: 16,
   },
+
+  dropdownMainBar: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    borderRadius: 3, 
+    borderWidth: 1, 
+    borderColor: "#d1d5db",
+    padding: 12,
+    backgroundColor: "#f9fafb",
+  },
+  dropdownText: {
+    fontSize: 12,
+    color: '#1f2937',
+  },
+
+
+  dropdownArrowSymbol: {
+    fontSize: 14,
+    color: 'blue',
+  },
+
+  dropdownListOptions: {
+    margin: 8, 
+    borderWidth: 1,
+    borderColor: "#2563eb",
+    backgroundColor: "white",
+    borderRadius: 3,
+    overflow: "hidden" as const,
+  },
+
+  dropdownItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: "#1f2937",
+  },
+  
+  subjectLabelOnCard: {
+    fontSize: 12,
+    color: "#6b7280",
+    margin: 3,
+  },
+
+
+
 }
