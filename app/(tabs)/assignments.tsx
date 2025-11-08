@@ -69,6 +69,9 @@ export default function AssignmentManager() {
   ];
   const[selectedSubjectName, setSelectedSubjectName] = useState<string>(SUBJECT_OPTIONS[0]);
   const[showSubjectOptions, setShowSubjectOptions] = useState<boolean>(false);
+  
+  const [expandedSubjectSections, setExpandedSubjectSections] =
+        useState<Record<string, boolean>>({});
 
   
 
@@ -769,6 +772,8 @@ export default function AssignmentManager() {
           </TouchableOpacity>
         )}
 
+
+
         <Text style={styles.listHeading}>
           {role === "teacher" ? "Your Assignments" : "Available Assignments"} (
           {assignments.length})
@@ -779,25 +784,125 @@ export default function AssignmentManager() {
               ? "No assignments yet. Create one above!"
               : "No assignments available yet."}
           </Text>
+
+          // Only  'Student' has this functionality for now. Can be extended to Teachers later.
+          // Probably will need extra scroll / larger map. 
+        ) : role === "student" ? ((() => {
+
+            const subjectNames = Array.from(
+              new Set(assignments.map(row => row.subjectName || "Unassigned"))
+            );
+
+
+            /*
+            Task #184 11/7
+
+            */
+            
+            return (
+              <View>
+                {subjectNames.map((subjectName) => (
+                  <View key={subjectName} style={styles.subjectContainer}>
+                    <TouchableOpacity
+
+
+                      // Copied over the entire map and just changed the opposite boolean
+                      onPress={() => {
+                        const updatedSection = Object.assign({}, expandedSubjectSections);
+                        updatedSection[subjectName] = !updatedSection[subjectName];
+                        setExpandedSubjectSections(updatedSection);
+                      }}
+
+                      style={styles.subjectHeader}
+                      activeOpacity={0.75}
+                      >
+
+                        {/*   Subject is on the left, Collapse/Expand on the Right (fallback)   */ }
+                      <Text style={styles.subjectNameTitle}>{subjectName}</Text>
+                      <Text style={styles.subjectArrowSymbol}>
+
+                        {/*  Added on to the end of each click header - can be looped through with better 
+                        tailwind animation later  */}
+
+                        {expandedSubjectSections[subjectName] ? "⇣" : "⇢"}
+                      </Text>
+                      </TouchableOpacity>
+
+                      
+{/*  EXPANDED VERSION STUFF  */ }
+
+
+                      {expandedSubjectSections[subjectName] && (
+                        <View style={styles.subjectBody}>
+
+
+                        
+                          {assignments
+                              .filter(item => (item.subjectName || "Unassigned") === subjectName)
+
+                              // Adding to the UI 
+                              .map((item) => {
+                                const submission = getSubmission(item.id);
+                                const isCompleted = submission !== undefined;
+
+
+                                return (
+                                  <TouchableOpacity
+                                    key={item.id}
+
+
+                                    // Results screen gets open if true  :  assignment opens if not 
+                                    onPress={() => {
+                                      if (isCompleted) {
+                                        setSelectedAssignment(item);
+                                        setShowSubmission(true);
+                                      }
+                                      else {
+                                        setSelectedAssignment(item);
+                                      }
+                                    }}
+
+                                    style={styles.assignmentCard}
+                                    activeOpacity={0.9}
+                                    >
+
+                                    
+{/* DID NOT CHANGE FROM HERE ON - just reworked the order  */}
+                                      <View style={styles.assignmentHeader}>
+                                        <View style={{ flex: 1}}>
+                                          <Text style={styles.assignmentName}>{item.name}</Text>
+                                          <Text style={styles.assignmentMeta}>
+                                            {item.problems.length} problem
+                                            {item.problems.length !== 1 ? "s" : ""} * {item.createdAt}
+                                            </Text>
+                                            <Text style={styles.subjectLabelOnCard}>
+                                              Class: {item.subjectName ?? "Unassigned"}
+                                            </Text>
+
+                                            {isCompleted && submission && (
+                                              <Text style={styles.completedLabel}>
+                                                ✓ Completed - Score: {submission.score}/{item.problems.length}
+                                              </Text>
+                                            )}
+                                        </View>
+                                      </View>
+                                    </TouchableOpacity>
+                                );
+                              })}
+                              </View>
+                      )}
+                      </View>
+                ))}
+                </View>
+            );
+          })()
         ) : (
           <FlatList
             data={assignments}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => {
-              const submission =
-                role === "student" ? getSubmission(item.id) : null;
-              const isCompleted = submission !== undefined;
-
-              return (
+            renderItem={({ item }) => (
                 <TouchableOpacity
-                  onPress={() => {
-                    if (role === "student" && isCompleted) {
-                      setSelectedAssignment(item);
-                      setShowSubmission(true);
-                    } else {
-                      setSelectedAssignment(item);
-                    }
-                  }}
+                  onPress={() => setSelectedAssignment(item)}
                   style={styles.assignmentCard}
                 >
                   <View style={styles.assignmentHeader}>
@@ -809,36 +914,34 @@ export default function AssignmentManager() {
                         {item.createdAt}
                       </Text>
 
+
                       <Text style={styles.subjectLabelOnCard}>
                         Class: {item.subjectName ?? "Unassigned"}
-                      </Text>
-
-
-
-
-                      {role === "student" && isCompleted && submission && (
-                        <Text style={styles.completedLabel}>
-                          ✓ Completed - Score: {submission.score}/
-                          {item.problems.length}
-                        </Text>
-                      )}
-                    </View>
-                    {role === "teacher" && (
-                      <TouchableOpacity
-                        onPress={() => deleteAssignment(item.id)}
-                        style={styles.assignmentDelete}
-                      >
-                        <Text style={styles.deleteButton}>Delete</Text>
-                      </TouchableOpacity>
-                    )}
+                      </Text>  
                   </View>
-                </TouchableOpacity>
-              );
-            }}
+                <TouchableOpacity
+                  onPress={() =>deleteAssignment(item.id)}
+                  style={styles.assignmentDelete}
+                  >
+                    <Text style={styles.deleteButton}> Delete </Text>
+                  </TouchableOpacity>
+                  </View>
+                  </TouchableOpacity>
+        )}
             scrollEnabled={false}
           />
         )}
       </View>
+
+
+
+
+
+
+
+
+
+
 
       <Modal visible={showCreateAssignment} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -1291,6 +1394,32 @@ const styles = {
     color: "#6b7280",
     margin: 3,
   },
+
+  subjectContainer: {
+    marginBottom: 8,
+  },
+  
+  subjectHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    padding: 10, 
+    backgroundColor: "#e0f2fe",
+
+  },
+  subjectNameTitle: {
+    fontSize: 14, 
+    color: "gray",
+  },
+  subjectArrowSymbol: {
+    fontSize: 16, 
+    color: "blue",
+  },
+
+
+  subjectBody: {
+    marginTop: 8,
+  }
 
 
 
