@@ -3,6 +3,8 @@
 import { OpenAI } from "openai";
 import openAIQueryParams from '../server/models/openai-query';
 import ToggleLogs, { LogLevel } from '../server/utilities/toggle_logs';
+import { parseEquationData } from './equationParser';
+import { validateEquationData } from './equationValidator';
 
 /**
  * Creates a singleton instance of the OpenAI client configured with the API key.
@@ -474,11 +476,58 @@ If no equation can be found, return:
             // Validate and fix template
             const finalEquation = validateAndFixTemplate(cleanedEquation, cleanedSubstituted);
             
+            // Parse the equation to get structured data for validation
+            let parsedData;
+            try {
+                parsedData = parseEquationData(finalEquation, cleanedSubstituted, cleanedVariables);
+            } catch (parseErr) {
+                ToggleLogs.log(`Failed to parse equation for validation: ${parseErr}`, LogLevel.WARN);
+                parsedData = undefined;
+            }
+            
+            // Validate the extracted equation data
+            const validation = validateEquationData(
+                finalEquation,
+                cleanedSubstituted,
+                cleanedVariables,
+                parsedData
+            );
+            
+            // Log validation results
+            if (validation.errors.length > 0) {
+                ToggleLogs.log(`AI extraction validation ERRORS: ${validation.errors.join('; ')}`, LogLevel.CRITICAL);
+                ToggleLogs.log(`Extracted data: equation="${finalEquation}", substituted="${cleanedSubstituted}"`, LogLevel.CRITICAL);
+            }
+            if (validation.warnings.length > 0) {
+                ToggleLogs.log(`AI extraction validation WARNINGS: ${validation.warnings.join('; ')}`, LogLevel.WARN);
+            }
+            
+            // If validation fails critically, try to fix or return empty
+            if (!validation.isValid && validation.errors.length > 0) {
+                const criticalErrors = validation.errors.filter(e => 
+                    e.includes('empty') || 
+                    e.includes('identical') ||
+                    e.includes('equals sign')
+                );
+                
+                if (criticalErrors.length > 0) {
+                    ToggleLogs.log(`Critical validation errors detected. Returning empty equation data.`, LogLevel.CRITICAL);
+                    return {
+                        equation: "",
+                        substitutedEquation: "",
+                        variables: [],
+                    };
+                }
+            }
+            
             ToggleLogs.log(`Extracted equation data: ${JSON.stringify({
                 equation: finalEquation,
                 substitutedEquation: cleanedSubstituted,
                 variablesCount: cleanedVariables.length,
-                wasIdentical: cleanedEquation === cleanedSubstituted
+                wasIdentical: cleanedEquation === cleanedSubstituted,
+                validationPassed: validation.isValid,
+                validationErrors: validation.errors.length,
+                validationWarnings: validation.warnings.length
             })}`, LogLevel.INFO);
             
             return {
