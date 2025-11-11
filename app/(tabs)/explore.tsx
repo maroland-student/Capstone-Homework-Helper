@@ -11,6 +11,7 @@ import { Fonts } from "@/constants/theme";
 
 // NEW
 import CameraCapture from "@/components/CameraCapture";
+import ProgressBar from "@/components/ProgressBar";
 
 export default function TabTwoScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -32,6 +33,22 @@ export default function TabTwoScreen() {
           Explore
         </ThemedText>
       </ThemedView>
+
+      <ProgressBar value={0} color="#4caf50" useLabel={true} />
+      <ProgressBar value={1} color="#4caf50" useLabel={true} />
+      <ProgressBar value={10} color="#4caf50" useLabel={true} />
+      <ProgressBar value={50} color="#4caf50" useLabel={true} />
+      <ProgressBar value={80} color="#4caf50" useLabel={true} />
+      <ProgressBar value={99} color="#4caf50" useLabel={true} />
+      <ProgressBar value={100} color="#4caf50" useLabel={true} />
+      
+      <ProgressBar value={0} color="#4caf50" useLabel={false} />
+      <ProgressBar value={1} color="#4caf50" useLabel={false} />
+      <ProgressBar value={10} color="#4caf50" useLabel={false} />
+      <ProgressBar value={50} color="#4caf50" useLabel={false} />
+      <ProgressBar value={80} color="#4caf50" useLabel={false} />
+      <ProgressBar value={99} color="#4caf50" useLabel={false} />
+      <ProgressBar value={100} color="#4caf50" useLabel={false} />
 
       <Collapsible title="Camera demo">
         {photoUri ? (
