@@ -9,13 +9,45 @@ import { Collapsible } from "@/components/ui/collapsible";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
 
-// NEW
 import CameraCapture from "@/components/CameraCapture";
 import ProgressBar from "@/components/ProgressBar";
+
+let lastRandom = "";
+function randomColor(): string{
+  const h = Math.random(); // hue [0,1)
+  const s = 1;             // max saturation
+  const v = 1;             // max value
+
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  let r = 0, g = 0, b = 0;
+
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+
+  let generated = `#${Math.round(r * 255).toString(16).padStart(2, '0')}${Math.round(g * 255).toString(16).padStart(2, '0')}${Math.round(b * 255).toString(16).padStart(2, '0')}`;
+  if(generated == lastRandom)
+    return randomColor();
+  lastRandom = generated;
+  return generated;
+}
 
 export default function TabTwoScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const testValues = [0, 1, 25, 50, 80, 99, 100];
+  const testWidth = [20, 50, 100];
 
   return (
     <ParallaxScrollView
@@ -34,21 +66,27 @@ export default function TabTwoScreen() {
         </ThemedText>
       </ThemedView>
 
-      <ProgressBar value={0} color="#4caf50" useLabel={true} />
-      <ProgressBar value={1} color="#4caf50" useLabel={true} />
-      <ProgressBar value={10} color="#4caf50" useLabel={true} />
-      <ProgressBar value={50} color="#4caf50" useLabel={true} />
-      <ProgressBar value={80} color="#4caf50" useLabel={true} />
-      <ProgressBar value={99} color="#4caf50" useLabel={true} />
-      <ProgressBar value={100} color="#4caf50" useLabel={true} />
-      
-      <ProgressBar value={0} color="#4caf50" useLabel={false} />
-      <ProgressBar value={1} color="#4caf50" useLabel={false} />
-      <ProgressBar value={10} color="#4caf50" useLabel={false} />
-      <ProgressBar value={50} color="#4caf50" useLabel={false} />
-      <ProgressBar value={80} color="#4caf50" useLabel={false} />
-      <ProgressBar value={99} color="#4caf50" useLabel={false} />
-      <ProgressBar value={100} color="#4caf50" useLabel={false} />
+      {testValues.map((value) => {
+        const color = randomColor();
+
+        return (
+          <div>
+            <ThemedText type="semibold" style={{ fontFamily: Fonts.rounded }}>
+              Testing value {value}
+            </ThemedText>
+            {
+              testWidth.map((width) => (
+                <div>
+                  <View style={{ height: 24 }} />
+                  <ProgressBar value={value} color={color} width={width} useLabel={false} />
+                  <View style={{ height: 24 }} />
+                  <ProgressBar value={value} color={color} width={width} useLabel={true} />
+                  <View style={{ height: 24 }} />
+                </div>
+              ))}
+          </div>
+        );
+      })}
 
       <Collapsible title="Camera demo">
         {photoUri ? (
