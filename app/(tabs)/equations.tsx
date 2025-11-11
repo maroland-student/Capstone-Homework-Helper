@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { LaTeXRenderer } from '@/components/LaTeXRenderer';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -20,15 +20,38 @@ export default function EquationsScreen() {
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState('');
+  const [inputError, setInputError] = useState<string | null>(null);
+
+  const validateInput = (text: string): boolean => {
+    setInputError(null);
+
+    if (!text || text.trim().length === 0) {
+      setInputError('Please enter a math problem');
+      return false;
+    }
+
+    if (text.trim().length < 10) {
+      setInputError('Problem seems too short. Please provide more details');
+      return false;
+    }
+
+    if (text.length > 2000) {
+      setInputError('Problem is too long. Please keep it under 2000 characters');
+      return false;
+    }
+
+    return true;
+  };
 
   const fetchMathProblem = async () => {
     try {
       setLoading(true);
       setError(null);
       setEquationData(null);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/openai/math-problem`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch math problem');
       }
@@ -36,7 +59,7 @@ export default function EquationsScreen() {
       const data = await response.json();
       const fullProblem = data.problem || 'No problem generated';
       setProblem(fullProblem);
-      
+
       // Extract equation from problem
       setExtracting(true);
       try {
@@ -56,7 +79,6 @@ export default function EquationsScreen() {
         }
       } catch (extractErr) {
         console.error('Error extracting equation:', extractErr);
-        // Don't show error for extraction failures, just continue without equation
       } finally {
         setExtracting(false);
       }
@@ -68,6 +90,59 @@ export default function EquationsScreen() {
     }
   };
 
+  const handleSubmitCustomProblem = async () => {
+    if (!validateInput(userInput)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      setInputError(null);
+      setEquationData(null);
+
+      const trimmedProblem = userInput.trim();
+      setProblem(trimmedProblem);
+
+      // Extract equation from user's problem
+      setExtracting(true);
+      try {
+        const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ problem: trimmedProblem }),
+        });
+
+        if (extractResponse.ok) {
+          const extractedData = await extractResponse.json();
+          if (extractedData.equation) {
+            setEquationData(extractedData);
+          }
+        }
+      } catch (extractErr) {
+        console.error('Error extracting equation:', extractErr);
+      } finally {
+        setExtracting(false);
+      }
+
+      setUserInput('');
+    } catch (err) {
+      console.error('Error processing custom problem:', err);
+      setError('Failed to process your problem. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (text: string) => {
+    setUserInput(text);
+    if (inputError) {
+      setInputError(null);
+    }
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#E8F0FE', dark: '#0F172A' }}
@@ -76,8 +151,59 @@ export default function EquationsScreen() {
         <ThemedText type="title">Equations</ThemedText>
       </ThemedView>
       <ThemedView style={styles.headerContainer}>
-        <ThemedText type="subtitle">Lets Practice!</ThemedText>
+        <ThemedText type="subtitle">Let's Practice!</ThemedText>
       </ThemedView>
+
+      {/* Input Section */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.inputSection}
+      >
+        <ThemedView style={styles.inputContainer}>
+          <ThemedText style={styles.inputLabel}>Enter Your Math Problem:</ThemedText>
+          <TextInput
+            style={[
+              styles.textInput,
+              inputError ? styles.textInputError : null,
+            ]}
+            placeholder="e.g., A car travels 120 km in 2 hours. What is its speed?"
+            placeholderTextColor="#999"
+            value={userInput}
+            onChangeText={handleInputChange}
+            multiline
+            numberOfLines={4}
+            maxLength={2000}
+          />
+          {inputError && (
+            <ThemedText style={styles.inputErrorText}>{inputError}</ThemedText>
+          )}
+          <ThemedText style={styles.characterCount}>
+            {userInput.length}/2000 characters
+          </ThemedText>
+        </ThemedView>
+
+        <ThemedView style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmitCustomProblem}
+          >
+            <ThemedText style={styles.buttonText}>
+              Submit Problem
+            </ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.generateButton}
+            onPress={fetchMathProblem}
+          >
+            <ThemedText style={styles.buttonText}>
+              Random Problem
+            </ThemedText>
+          </TouchableOpacity>
+        </ThemedView>
+      </KeyboardAvoidingView>
+
+      {/* Problem Display Section */}
       <ThemedView style={styles.problemContainer}>
         {loading ? (
           <ThemedView style={styles.centerContent}>
@@ -93,7 +219,7 @@ export default function EquationsScreen() {
             <ThemedView style={styles.problemBox}>
               <ThemedText style={styles.problemText}>{problem}</ThemedText>
             </ThemedView>
-            
+
             {extracting && (
               <ThemedView style={styles.centerContent}>
                 <ActivityIndicator size="small" />
@@ -106,7 +232,7 @@ export default function EquationsScreen() {
                 <ThemedText type="subtitle" style={styles.equationLabel}>
                   Extracted Equation:
                 </ThemedText>
-                
+
                 {/* Template Equation */}
                 <ThemedView style={styles.equationBox}>
                   <ThemedText style={styles.equationTitle}>Template:</ThemedText>
@@ -139,18 +265,11 @@ export default function EquationsScreen() {
           </>
         ) : (
           <ThemedView style={styles.centerContent}>
-            <ThemedText style={styles.emptyText}>Click "New Question" to get started!</ThemedText>
+            <ThemedText style={styles.emptyText}>
+              Enter a math problem above or click "Random Problem" to get started!
+            </ThemedText>
           </ThemedView>
         )}
-      </ThemedView>
-      <ThemedView style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={styles.newQuestionButton}
-          onPress={fetchMathProblem}
-          disabled={loading || extracting}
-        >
-          <ThemedText style={styles.buttonText}>New Question</ThemedText>
-        </TouchableOpacity>
       </ThemedView>
     </ParallaxScrollView>
   );
@@ -169,28 +288,69 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
-  problemContainer: {
+  inputSection: {
+    marginBottom: 24,
+  },
+  inputContainer: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.3)',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    backgroundColor: 'rgba(128, 128, 128, 0.05)',
+  },
+  textInputError: {
+    borderColor: '#FF3B30',
+    borderWidth: 2,
+  },
+  inputErrorText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  characterCount: {
+    fontSize: 12,
+    opacity: 0.6,
+    textAlign: 'right',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 16,
-    marginBottom: 24,
-    gap: 16,
   },
-  buttonContainer: {
-    marginTop: 8,
-    marginBottom: 24,
-    alignItems: 'center',
-  },
-  newQuestionButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
+  submitButton: {
+    flex: 1,
+    backgroundColor: '#34C759',
     paddingVertical: 12,
     borderRadius: 8,
-    minWidth: 150,
+    alignItems: 'center',
+  },
+  generateButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  problemContainer: {
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 16,
   },
   problemBox: {
     backgroundColor: 'rgba(128, 128, 128, 0.1)',
@@ -243,13 +403,6 @@ const styles = StyleSheet.create({
   variableText: {
     fontSize: 16,
   },
-  variableKey: {
-    fontWeight: '600',
-  },
-  variableValue: {
-    fontWeight: '600',
-    color: '#007AFF',
-  },
   centerContent: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -267,5 +420,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     opacity: 0.7,
+    textAlign: 'center',
   },
 });
