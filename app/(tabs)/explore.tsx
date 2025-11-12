@@ -66,27 +66,28 @@ export default function TabTwoScreen() {
         </ThemedText>
       </ThemedView>
 
+
       {testValues.map((value) => {
         const color = randomColor();
 
         return (
-          <div>
+            <View key={`value-${value}`}>
             <ThemedText type="semibold" style={{ fontFamily: Fonts.rounded }}>
               Testing value {value}
             </ThemedText>
-            {
-              testWidth.map((width) => (
-                <div>
+             {testWidth.map((width) => (
+                <View key={`width-${width}`}>
                   <View style={{ height: 24 }} />
                   <ProgressBar value={value} color={color} width={width} useLabel={false} />
                   <View style={{ height: 24 }} />
                   <ProgressBar value={value} color={color} width={width} useLabel={true} />
                   <View style={{ height: 24 }} />
-                </div>
+                  </View>
               ))}
-          </div>
+          </View>
         );
       })}
+
 
       <Collapsible title="Camera demo">
         {photoUri ? (

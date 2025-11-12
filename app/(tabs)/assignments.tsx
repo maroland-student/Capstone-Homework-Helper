@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FlatList,
   Modal,
@@ -8,6 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+import {
+  getSavedExtractedEquations,
+  attachStudentListener, 
+  removeSavedEquation,
+  clearSavedEquations,
+  type SavedEquation,
+} from "@/lib/saved-equations";
 
 export default function AssignmentManager() {
   type Problem = {
@@ -54,6 +62,20 @@ export default function AssignmentManager() {
     [key: number]: string;
   }>({});
   const [showSubmission, setShowSubmission] = useState(false);
+
+  // temp for just in memory until we can implement persistent storage (myEd database? )
+  const [savedEquations, setSavedEquations] = useState<SavedEquation[]>(
+    getSavedExtractedEquations()
+  );
+
+  useEffect(() => {
+    return attachStudentListener(setSavedEquations);
+  }, 
+  
+  // tracks 'saved list' -> can format later for 'different folder or classes
+  // sub out array
+  
+  []);
 
   const createAssignment = () => {
     if (assignmentName.trim()) {
@@ -737,6 +759,80 @@ export default function AssignmentManager() {
           {role === "teacher" ? "Your Assignments" : "Available Assignments"} (
           {assignments.length})
         </Text>
+
+        {role === "student" && !selectedAssignment && !showSubmission && (
+          <>
+          <Text style={styles.listHeading}>
+             SAVED / Extracted Equations ({savedEquations.length})
+          </Text>
+
+
+          {savedEquations.length === 0 ? (
+            <Text style={styles.emptyState}>
+                Nothing saved yet. Use the "Save to Student" via 'Equations' Tab.
+            </Text>
+
+          ) : (
+
+
+            <FlatList
+              data={savedEquations}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.extractSaveContainer}>
+                  <Text style={styles.extractSavedTitle} numberOfLines={2}>
+                    {item.fromProblem}
+                  </Text>
+
+                
+
+                  <Text style={styles.extractSavedlabel}> Equation</Text>
+                  <Text style={styles.extractEquationOnLine}>{item.equation}</Text>
+
+
+                  {item.substitutedEquation ? (
+                    <>
+                      <Text style={styles.extractSavedlabel}>With Values</Text>
+                      <Text style={styles.extractEquationOnLine}>
+                        {item.substitutedEquation}
+                      </Text>
+                    
+                    
+                    </>
+                  ) : null}
+
+                  {!!item.variables?.length && (
+                    <Text style={styles.extractSavedVars}>
+                      Variables: {item.variables.join(", ")}
+                    </Text>
+                  )}
+
+
+                  <View style={styles.extractSavedFooter}>
+                    <Text style={styles.extractTimeStamp}>Saved {item.savedAt}</Text>
+                    <TouchableOpacity onPress={() => removeSavedEquation(item.id)}>
+                      <Text style={styles.extractDeleteButtonText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                
+                </View>
+              )}
+              scrollEnabled={false}
+              />
+              )}
+
+
+              {savedEquations.length > 0 && (
+                <TouchableOpacity
+                onPress={clearSavedEquations}
+                style={styles.addButton} > 
+                <Text style={styles.addButtonText}> Clear Saved Equations </Text>
+                </TouchableOpacity>
+              )}
+         
+          </>
+        )}
+
         {assignments.length === 0 ? (
           <Text style={styles.emptyState}>
             {role === "teacher"
@@ -1164,5 +1260,54 @@ const styles = {
     color: "white",
     fontWeight: "600" as "600",
     fontSize: 16,
+  },
+
+  extractSaveContainer: {
+    backgroundColor: "white",
+    padding: 12, 
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  extractSavedTitle: {
+    fontSize: 16, 
+    fontWeight: "500" as const,
+    color: "#1f2937",
+
+  },
+
+  extractSavedlabel: {
+    fontSize: 12,
+    fontWeight: "500" as const,
+    color: "#6b7280",
+  },
+
+  extractEquationOnLine: {
+    fontSize: 14,
+    color: "#1f2937",
+  },
+
+  extractSavedVars: {
+    fontSize: 12, 
+    color: "#374151",
+    marginTop: 6,
+  },
+
+  extractSavedFooter: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    marginTop: 10,
+  },
+
+  extractTimeStamp: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+
+  extractDeleteButtonText: {
+    fontSize: 14,
+    color: "#ef4442",
+    fontWeight: "500" as const,
   },
 }

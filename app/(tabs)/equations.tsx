@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { parseEquationData } from '@/utilities/equationParser';
 import { validateEquationData } from '@/utilities/equationValidator';
+import { addSavedExtractedEquation } from '@/lib/saved-equations';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -226,6 +227,30 @@ export default function EquationsScreen() {
     }
   };
 
+  const ExtractToStudentTab = () => {
+    if (!equationData) {
+      return;
+    }
+
+    addSavedExtractedEquation({
+      fromProblem: problem || 'User Generated Problem from GPT',
+      equation: equationData.equation,
+      substitutedEquation: equationData.substitutedEquation,
+      variables: equationData.variables,
+      
+    });
+
+
+    const message = " Saved to Student Tab under 'Extracted Equations' ";
+    if (Platform.OS === 'web') {
+      window.alert(message);
+    }
+
+    else {
+      Alert.alert('Saved', message, [{  text: 'OK '}]);
+    }
+  };
+
   const fetchMathProblem = async () => {
     try {
       setLoading(true);
@@ -402,6 +427,15 @@ export default function EquationsScreen() {
                       <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
                     )}
                   </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={ExtractToStudentTab}
+                    style={[styles.saveButton, !equationData && styles.saveButtonDisabled]}
+                    disabled={!equationData}
+                    >
+                      <ThemedText style={styles.buttonText}> Save to Student Tab </ThemedText>
+                    </TouchableOpacity>
+
                 </ThemedView>
               </>
             )}
