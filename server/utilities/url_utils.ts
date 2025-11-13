@@ -16,13 +16,13 @@ export function getPath(req: IncomingMessage) {
     return url.pathname;
 }
 
-export function parseCookies(req: IncomingMessage){
+export function parseCookies(req: IncomingMessage) {
     const header = req.headers.cookie
-    if(!header) return {}
+    if (!header) return {}
 
     return Object.fromEntries(
         header.split(';').map(c => {
-            const[key, value] = c.trim().split('=')
+            const [key, value] = c.trim().split('=')
             return [key, decodeURIComponent(value)]
         })
     )
@@ -42,30 +42,31 @@ export async function getBody(req: IncomingMessage) {
     }
 }
 
-export function sendJson(res: ServerResponse, status: number, data: any){
-    res.writeHead(status, { 'Content-Type': 'application/json'})
+export function sendJson(res: ServerResponse, status: number, data: any) {
+    res.writeHead(status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(data))
 }
 
-export function sendText(res: ServerResponse, status: number, data: string){
-    res.writeHead(status, { 'Content-Type': 'text/plain'})
+export function sendText(res: ServerResponse, status: number, data: string) {
+    res.writeHead(status, { 'Content-Type': 'text/plain' })
     res.end(data)
 }
 
-export function sendHtml(res: ServerResponse, status: number, data: string){
-    res.writeHead(status, { 'Content-Type': 'text/html'})
+export function sendHtml(res: ServerResponse, status: number, data: string) {
+    res.writeHead(status, { 'Content-Type': 'text/html' })
     res.end(data)
 }
 
 export function notFound(res: ServerResponse): void;
 export function notFound(res: ServerResponse, errorMessage: string): void;
 export function notFound(res: ServerResponse, errorMessage?: string): void {
-  sendJson(res, 404, { 
-    error: errorMessage ?? 'Not Found' })
+    sendJson(res, 404, {
+        error: errorMessage ?? 'Not Found'
+    })
 }
 
-export async function simulateDelay(res: ServerResponse, milliseconds: number, status: number, data: string){
-    if(milliseconds < 0)
+export async function simulateDelay(res: ServerResponse, milliseconds: number, status: number, data: string) {
+    if (milliseconds < 0)
         milliseconds = 1;
 
     Log.log("Simulating delay of " + milliseconds + "ms", LogLevel.DEBUG);
@@ -77,21 +78,21 @@ export async function simulateDelay(res: ServerResponse, milliseconds: number, s
     sendText(res, status, data);
 }
 
-export function hasMethod(req: IncomingMessage, allowedMethods: string[], target: string | undefined): boolean{
-    if(!req || req == undefined)
+export function hasMethod(req: IncomingMessage, allowedMethods: string[], target: string | undefined): boolean {
+    if (!req || req == undefined)
         return true;
 
-    if(!allowedMethods || allowedMethods.length == 0)
+    if (!allowedMethods || allowedMethods.length == 0)
         return true;
 
-    if(target == undefined || target === "")
+    if (target == undefined || target === "")
         return false;
 
-    for(const allowed of allowedMethods){
-        if(allowed === target)
+    for (const allowed of allowedMethods) {
+        if (allowed === target)
             return true;
 
-        if(allowed.toLowerCase() === target.toLowerCase())
+        if (allowed.toLowerCase() === target.toLowerCase())
             return true;
     }
 
@@ -104,8 +105,34 @@ export function hasBody(req: IncomingMessage): boolean {
     return body != undefined;
 }
 
-export function hasRequiredQueryParams(req: IncomingMessage, queryParams: string[]): boolean{
-    return false;
+export function hasRequiredQueryParams(queryParams: string[], req: IncomingMessage | null = null,  params: Record<string, string> | null = null): boolean {
+    // Ensure at least one of req or params is provided
+    if(req == null && params == null)
+        return false;
+
+    // If params not provided, extract from req
+    if(params == null || params == undefined)
+        params = getQueryParams(req);
+
+    for(const key of queryParams){
+        if(!(key in params)) return false;
+    }
+
+    return true;
 }
 
-export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound, simulateDelay, hasBody, hasRequiredQueryParams, hasMethod}
+export function getQueryParams(req: IncomingMessage | null): Record<string, string> {
+    if(req == null || req == undefined || req.url == undefined)
+        return {};
+
+    const url = new URL(req.url || "", `http://${req.headers.host}`);
+    const params: Record<string, string> = {};
+
+    for (const [key, value] of url.searchParams.entries()) {
+        params[key] = value;
+    }
+
+    return params;
+}
+
+export default { getUrl, getQuery, getPath, parseCookies, getBody, sendJson, sendText, sendHtml, notFound, simulateDelay, hasBody, hasRequiredQueryParams, hasMethod, getQueryParams }
