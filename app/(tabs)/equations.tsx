@@ -50,43 +50,81 @@ export default function EquationsScreen() {
       setError(null);
       setEquationData(null);
 
-      const response = await fetch(`${API_BASE_URL}/api/openai/math-problem`);
+      const response = await fetch(`${API_BASE_URL}/api/openai/math-problem`, {
+        signal: AbortSignal.timeout(30000),
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch math problem');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Server error (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
+
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+
       const fullProblem = data.problem || 'No problem generated';
       setProblem(fullProblem);
 
       // Extract equation from problem
-      setExtracting(true);
-      try {
-        const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ problem: fullProblem }),
-        });
-
-        if (extractResponse.ok) {
-          const extractedData = await extractResponse.json();
-          if (extractedData.equation) {
-            setEquationData(extractedData);
-          }
-        }
-      } catch (extractErr) {
-        console.error('Error extracting equation:', extractErr);
-      } finally {
-        setExtracting(false);
-      }
+      await extractEquation(fullProblem);
     } catch (err) {
       console.error('Error fetching math problem:', err);
-      setError('Failed to load math problem. Please try again.');
+
+      if (err instanceof Error) {
+        if (err.name === 'AbortError' || err.message.includes('timeout')) {
+          setError('Request timed out. Please check your connection and try again.');
+        } else if (err.message.includes('fetch')) {
+          setError('Network error. Please check your connection.');
+        } else {
+          setError(`Failed to load math problem: ${err.message}`);
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const extractEquation = async (problemText: string) => {
+    setExtracting(true);
+    try {
+      const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ problem: problemText }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!extractResponse.ok) {
+        console.warn(`Equation extraction failed with status ${extractResponse.status}`);
+        return; // Silently continue without equation
+      }
+
+      const extractedData = await extractResponse.json();
+
+      if (!extractedData || typeof extractedData !== 'object') {
+        console.warn('Invalid equation extraction response format');
+        return;
+      }
+
+      if (extractedData.equation) {
+        setEquationData({
+          equation: extractedData.equation || '',
+          substitutedEquation: extractedData.substitutedEquation || '',
+          variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+        });
+      }
+    } catch (extractErr) {
+      console.error('Error extracting equation:', extractErr);
+      // Don't show error for extraction failures, just continue without equation
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -105,28 +143,9 @@ export default function EquationsScreen() {
       setProblem(trimmedProblem);
 
       // Extract equation from user's problem
-      setExtracting(true);
-      try {
-        const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ problem: trimmedProblem }),
-        });
+      await extractEquation(trimmedProblem);
 
-        if (extractResponse.ok) {
-          const extractedData = await extractResponse.json();
-          if (extractedData.equation) {
-            setEquationData(extractedData);
-          }
-        }
-      } catch (extractErr) {
-        console.error('Error extracting equation:', extractErr);
-      } finally {
-        setExtracting(false);
-      }
-
+      // Clear input after successful submission
       setUserInput('');
     } catch (err) {
       console.error('Error processing custom problem:', err);
@@ -138,10 +157,13 @@ export default function EquationsScreen() {
 
   const handleInputChange = (text: string) => {
     setUserInput(text);
+    // Clear error when user starts typing
     if (inputError) {
       setInputError(null);
     }
   };
+
+  const isProcessing = loading || extracting;
 
   return (
     <ParallaxScrollView
@@ -173,6 +195,7 @@ export default function EquationsScreen() {
             multiline
             numberOfLines={4}
             maxLength={2000}
+            editable={!isProcessing}
           />
           {inputError && (
             <ThemedText style={styles.inputErrorText}>{inputError}</ThemedText>
@@ -184,17 +207,19 @@ export default function EquationsScreen() {
 
         <ThemedView style={styles.buttonRow}>
           <TouchableOpacity
-            style={styles.submitButton}
+            style={[styles.submitButton, isProcessing && styles.buttonDisabled]}
             onPress={handleSubmitCustomProblem}
+            disabled={isProcessing}
           >
             <ThemedText style={styles.buttonText}>
-              Submit Problem
+              {isProcessing ? 'Processing...' : 'Submit Problem'}
             </ThemedText>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.generateButton}
+            style={[styles.generateButton, isProcessing && styles.buttonDisabled]}
             onPress={fetchMathProblem}
+            disabled={isProcessing}
           >
             <ThemedText style={styles.buttonText}>
               Random Problem
@@ -205,7 +230,7 @@ export default function EquationsScreen() {
 
       {/* Problem Display Section */}
       <ThemedView style={styles.problemContainer}>
-        {loading ? (
+        {loading && !problem ? (
           <ThemedView style={styles.centerContent}>
             <ActivityIndicator size="large" />
             <ThemedText style={styles.loadingText}>Generating problem...</ThemedText>
@@ -213,6 +238,12 @@ export default function EquationsScreen() {
         ) : error ? (
           <ThemedView style={styles.centerContent}>
             <ThemedText style={styles.errorText}>{error}</ThemedText>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => setError(null)}
+            >
+              <ThemedText style={styles.retryButtonText}>Dismiss</ThemedText>
+            </TouchableOpacity>
           </ThemedView>
         ) : problem ? (
           <>
@@ -342,6 +373,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -416,10 +450,23 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     color: '#FF3B30',
+    textAlign: 'center',
   },
   emptyText: {
     fontSize: 14,
     opacity: 0.7,
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+  retryButtonText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
