@@ -14,6 +14,7 @@ import {
   attachStudentListener, 
   removeSavedEquation,
   clearSavedEquations,
+  togglePinned,
   type SavedEquation,
 } from "@/lib/saved-equations";
 
@@ -77,6 +78,21 @@ export default function AssignmentManager() {
   
   []);
 
+  const sortSaved = (a: SavedEquation, b: SavedEquation) => {
+    if (a.pinned !== b.pinned) {
+      return a.pinned ? -1 : 1;
+    }
+    return Number (b.id) - Number(a.id);
+  };
+
+  const pinned = savedEquations
+    .filter(e=> e.pinned)
+    .sort((a, b) => Number(b.id) - Number(a.id));
+
+  const others = savedEquations
+    .filter(e => !e.pinned)
+    .sort((a, b) => Number(b.id) - Number(a.id));
+    
   const createAssignment = () => {
     if (assignmentName.trim()) {
       const newAssignment: Assignment = {
@@ -774,17 +790,20 @@ export default function AssignmentManager() {
 
           ) : (
 
+            <> 
+            {pinned.length > 0 && (
+              <View style={styles.pinnedBox}>
+                <Text style={styles.pinnedHeader}>Pinned Equations</Text>
+                <View style={styles.pinnedDivider} />
 
             <FlatList
-              data={savedEquations}
+              data={pinned}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <View style={styles.extractSaveContainer}>
                   <Text style={styles.extractSavedTitle} numberOfLines={2}>
                     {item.fromProblem}
                   </Text>
-
-                
 
                   <Text style={styles.extractSavedlabel}> Equation</Text>
                   <Text style={styles.extractEquationOnLine}>{item.equation}</Text>
@@ -810,16 +829,81 @@ export default function AssignmentManager() {
 
                   <View style={styles.extractSavedFooter}>
                     <Text style={styles.extractTimeStamp}>Saved {item.savedAt}</Text>
-                    <TouchableOpacity onPress={() => removeSavedEquation(item.id)}>
-                      <Text style={styles.extractDeleteButtonText}>Remove</Text>
-                    </TouchableOpacity>
+
+                    <View style={styles.extractFooterBar}>
+                      <TouchableOpacity onPress={() => togglePinned(item.id)}>
+                        <Text style={styles.pinText}>{item.pinned ? "Unpin" : "Pin"}</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => removeSavedEquation(item.id)}>
+                        <Text style={styles.removeText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                
                 </View>
               )}
               scrollEnabled={false}
               />
+              </View>
               )}
+              {/* Unpinned Case -> if applicable (copied over from above to save some time 
+                    Will be moved to more proper storage or even a (txt) file later*/}
+
+              {others.length > 0 && (
+                <FlatList
+                  data={others}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <View style={styles.extractSaveContainer}>
+                  <Text style={styles.extractSavedTitle} numberOfLines={2}>
+                    {item.fromProblem}
+                  </Text>
+
+                  <Text style={styles.extractSavedlabel}> Equation</Text>
+                  <Text style={styles.extractEquationOnLine}>{item.equation}</Text>
+
+
+                  {item.substitutedEquation ? (
+                    <>
+                      <Text style={styles.extractSavedlabel}>With Values</Text>
+                      <Text style={styles.extractEquationOnLine}>
+                        {item.substitutedEquation}
+                      </Text>
+                    
+                    
+                    </>
+                  ) : null}
+
+                  {!!item.variables?.length && (
+                    <Text style={styles.extractSavedVars}>
+                      Variables: {item.variables.join(", ")}
+                    </Text>
+                  )}
+
+
+                  <View style={styles.extractSavedFooter}>
+                    <Text style={styles.extractTimeStamp}>Saved {item.savedAt}</Text>
+
+                    <View style={styles.extractFooterBar}>
+                      <TouchableOpacity onPress={() => togglePinned(item.id)}>
+                        <Text style={styles.pinText}>{item.pinned ? "Unpin" : "Pin"}</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => removeSavedEquation(item.id)}>
+                        <Text style={styles.removeText}>Remove</Text>
+                      </TouchableOpacity>
+                      </View>
+                     </View>
+                /</View>
+                  )}
+                  scrollEnabled={false}
+                  />
+              )}
+              </>
+          )}
+
+
+
 
 
               {savedEquations.length > 0 && (
@@ -832,6 +916,12 @@ export default function AssignmentManager() {
          
           </>
         )}
+
+
+
+
+
+
 
         {assignments.length === 0 ? (
           <Text style={styles.emptyState}>
@@ -1310,4 +1400,47 @@ const styles = {
     color: "#ef4442",
     fontWeight: "500" as const,
   },
+
+  extractFooterBar: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+
+  },
+
+  pinText: {
+    fontSize: 14,
+    color: "#2563eb",
+    fontWeight: "500" as const,
+    marginRight: 14,
+  },
+
+  removeText: {
+    fontSize: 14, 
+    color: "#ef4444",
+    fontWeight: "600" as const,
+  },
+
+  pinnedBox: {
+    backgroundColor: "#royalblue", 
+    borderWidth: 2,
+    borderColor: "#royalblue",
+    borderRadius: 15, 
+    padding: 10, 
+    marginBottom: 15, 
+  
+
+  },
+
+  pinnedHeader: {
+    fontSize: 14,
+    fontWeight: "500" as const,
+    color: "#1f2937",
+    marginBottom: 7,
+
+  },
+  pinnedDivider: {
+    height: 2,
+    backgroundColor: "e5e7eb",
+    marginBottom: 12,
+  }
 }

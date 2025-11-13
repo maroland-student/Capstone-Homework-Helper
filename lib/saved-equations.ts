@@ -8,6 +8,7 @@ export interface SavedEquation {
     substitutedEquation: string;
     variables: string[];
     savedAt: string;
+    pinned: boolean;
 }
 
 
@@ -28,19 +29,44 @@ export function getSavedExtractedEquations() {
 }
 
 export function addSavedExtractedEquation(
-    data: Omit<SavedEquation, 'id' | 'savedAt'>
+    data: Omit<SavedEquation, 'id' | 'savedAt' | 'pinned'>
 ) 
 
 {
     const entry: SavedEquation = {
         id: String(Date.now()),
-        savedAt: new Date().toLocaleString(), ...data,
+        savedAt: new Date().toLocaleString(),
+        pinned: false,
+        ...data,
         };
 
         saved = [entry, ...saved];
         notify();
 }
 
+export function togglePinned(id: string) : void {
+    let changed = false;
+    const updated: SavedEquation[] = [];
+
+    for (const item of saved) {
+        if (item.id === id) {
+            updated.push({ ...item, pinned: !item.pinned});
+            changed = true;
+        }
+
+        else {
+            updated.push(item);
+        }
+    }
+
+
+    if (changed) {
+        saved = updated;
+        notify();
+    }
+}
+
+ 
 export function removeSavedEquation(id: string) {
     saved = saved.filter(equ => equ.id !==id);
     notify();
