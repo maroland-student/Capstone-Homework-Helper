@@ -11,33 +11,14 @@ import { Fonts } from "@/constants/theme";
 
 import CameraCapture from "@/components/CameraCapture";
 import ProgressBar from "@/components/ProgressBar";
+import { randomHexColor } from "@/utilities/randomColor";
 
 let lastRandom = "";
 function randomColor(): string{
-  const h = Math.random(); // hue [0,1)
-  const s = 1;             // max saturation
-  const v = 1;             // max value
-
-  const i = Math.floor(h * 6);
-  const f = h * 6 - i;
-  const p = v * (1 - s);
-  const q = v * (1 - f * s);
-  const t = v * (1 - (1 - f) * s);
-
-  let r = 0, g = 0, b = 0;
-
-  switch (i % 6) {
-    case 0: r = v; g = t; b = p; break;
-    case 1: r = q; g = v; b = p; break;
-    case 2: r = p; g = v; b = t; break;
-    case 3: r = p; g = q; b = v; break;
-    case 4: r = t; g = p; b = v; break;
-    case 5: r = v; g = p; b = q; break;
-  }
-
-  let generated = `#${Math.round(r * 255).toString(16).padStart(2, '0')}${Math.round(g * 255).toString(16).padStart(2, '0')}${Math.round(b * 255).toString(16).padStart(2, '0')}`;
+  let generated = randomHexColor(0, 1, 1, 1, 1, 1);
   if(generated == lastRandom)
     return randomColor();
+
   lastRandom = generated;
   return generated;
 }
@@ -71,9 +52,6 @@ export default function TabTwoScreen() {
 
         return (
           <div>
-            <ThemedText type="semibold" style={{ fontFamily: Fonts.rounded }}>
-              Testing value {value}
-            </ThemedText>
             {
               testWidth.map((width) => (
                 <div>
