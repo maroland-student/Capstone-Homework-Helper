@@ -25,6 +25,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="welcome-dashboard"
+        options={{
+          title: 'Dashboard',
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           title: 'Explore',
@@ -40,6 +46,18 @@ export default function TabLayout() {
         name="subjects"
         options={{
           title: 'Subjects',
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+        }}
+      />
+      <Tabs.Screen
+        name="assignments"
+        options={{
+          title: 'Assignments',
         }}
       />
     </Tabs>
