@@ -266,53 +266,55 @@ export default function EquationsScreen() {
             )}
 
             {equationData && equationData.equation && (
-              <ThemedView style={styles.equationContainer}>
-                <ThemedText type="subtitle" style={styles.equationLabel}>
-                  Extracted Equation:
-                </ThemedText>
-                
-                <ThemedView style={styles.equationBox}>
-                  <ThemedText style={styles.equationTitle}>Template:</ThemedText>
-                  <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
+              <>
+                <ThemedView style={styles.equationContainer}>
+                  <ThemedText type="subtitle" style={styles.equationLabel}>
+                    Extracted Equation:
+                  </ThemedText>
+                  
+                  <ThemedView style={styles.equationBox}>
+                    <ThemedText style={styles.equationTitle}>Template:</ThemedText>
+                    <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
+                  </ThemedView>
+
+                  {equationData.variables && equationData.variables.length > 0 && (
+                    <ThemedView style={styles.variablesBox}>
+                      <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
+                      <View style={styles.variablesList}>
+                        {equationData.variables.map((variable, index) => (
+                          <View key={index} style={styles.variableItem}>
+                            <ThemedText style={styles.variableText}>{variable}</ThemedText>
+                          </View>
+                        ))}
+                      </View>
+                    </ThemedView>
+                  )}
+
+                  {equationData.substitutedEquation && (
+                    <ThemedView style={styles.equationBox}>
+                      <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
+                      <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
+                    </ThemedView>
+                  )}
                 </ThemedView>
 
-                {equationData.variables && equationData.variables.length > 0 && (
-                  <ThemedView style={styles.variablesBox}>
-                    <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
-                    <View style={styles.variablesList}>
-                      {equationData.variables.map((variable, index) => (
-                        <View key={index} style={styles.variableItem}>
-                          <ThemedText style={styles.variableText}>{variable}</ThemedText>
-                        </View>
-                      ))}
-                    </View>
-                  </ThemedView>
-                )}
-
-                {equationData.substitutedEquation && (
-                  <ThemedView style={styles.equationBox}>
-                    <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
-                    <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
-                  </ThemedView>
-                )}
-              </ThemedView>
-
-              <ThemedView style={styles.buttonContainer}>
-                <TouchableOpacity 
-                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                  onPress={saveEquationAsJSON}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <ActivityIndicator size="small" color="#FFFFFF" style={styles.saveLoader} />
-                      <ThemedText style={styles.buttonText}>Saving...</ThemedText>
-                    </>
-                  ) : (
-                    <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
-                  )}
-                </TouchableOpacity>
-              </ThemedView>
+                <ThemedView style={styles.buttonContainer}>
+                  <TouchableOpacity 
+                    style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                    onPress={saveEquationAsJSON}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <ActivityIndicator size="small" color="#FFFFFF" style={styles.saveLoader} />
+                        <ThemedText style={styles.buttonText}>Saving...</ThemedText>
+                      </>
+                    ) : (
+                      <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
+                    )}
+                  </TouchableOpacity>
+                </ThemedView>
+              </>
             )}
           </>
         ) : (
