@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSubjects } from '@/lib/subjects-context';
 import { TopicCategory } from '@/server/data/topics.types';
 import { getCategories } from '@/utilities/topicsLoader';
 import { useEffect, useRef, useState } from 'react';
@@ -18,14 +19,14 @@ const CARDS_TO_SHOW = 7;
 
 export default function SubjectsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-  const [selectedTopics, setSelectedTopics] = useState<SelectedTopics>(new Set());
+  const { selectedTopics, setSelectedTopics } = useSubjects();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const dropdownScrollViewRef = useRef<ScrollView>(null);
-  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentIndexRef = useRef(0);
   const isDraggingRef = useRef(false);
   const containerWidthRef = useRef(0);
@@ -189,7 +190,7 @@ export default function SubjectsScreen() {
   };
 
   const toggleTopic = (topicId: string) => {
-    setSelectedTopics(prev => {
+    setSelectedTopics((prev: Set<string>) => {
       const newSet = new Set(prev);
       if (newSet.has(topicId)) {
         newSet.delete(topicId);
@@ -207,7 +208,7 @@ export default function SubjectsScreen() {
     const allTopicIds = category.topics.map(t => t.id);
     const allSelected = allTopicIds.every(id => selectedTopics.has(id));
 
-    setSelectedTopics(prev => {
+    setSelectedTopics((prev: Set<string>) => {
       const newSet = new Set(prev);
       if (allSelected) {
         allTopicIds.forEach(id => newSet.delete(id));
