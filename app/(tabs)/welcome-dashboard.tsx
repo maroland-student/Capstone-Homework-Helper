@@ -1,10 +1,15 @@
-import { StyleSheet } from "react-native";
-
 import ParallaxScrollView from "@/components/parallax-scroll-view";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
+import { useState } from "react";
+import { StyleSheet } from "react-native";
+
+import { useSession } from "@/lib/auth-client";
+import Log, { LogLevel } from "@/server/utilities/toggle_logs";
+
+const [userRole, setUserRole] = useState<any | null>(null);
 
 export default function WelcomeDashboardScreen() {
     return (
@@ -25,6 +30,18 @@ export default function WelcomeDashboardScreen() {
             </ThemedView>
         </ParallaxScrollView>
     );
+}
+
+const getRole = async (): Promise<string> => {
+    try {
+        Log.log("Fetching user role...", LogLevel.INFO);
+
+        const { data: session, isPending } = useSession();
+
+        return '';
+    } catch (error: any) {
+        return '';
+    }
 }
 
 const styles = StyleSheet.create({
