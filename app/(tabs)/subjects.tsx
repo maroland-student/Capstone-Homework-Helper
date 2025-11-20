@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSubjects } from '@/lib/subjects-context';
 import { TopicCategory } from '@/server/data/topics.types';
 import { getCategories } from '@/utilities/topicsLoader';
 import { useEffect, useRef, useState } from 'react';
@@ -18,14 +19,14 @@ const CARDS_TO_SHOW = 7;
 
 export default function SubjectsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-  const [selectedTopics, setSelectedTopics] = useState<SelectedTopics>(new Set());
+  const { selectedTopics, setSelectedTopics } = useSubjects();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const dropdownScrollViewRef = useRef<ScrollView>(null);
-  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentIndexRef = useRef(0);
   const isDraggingRef = useRef(false);
   const containerWidthRef = useRef(0);
@@ -189,7 +190,7 @@ export default function SubjectsScreen() {
   };
 
   const toggleTopic = (topicId: string) => {
-    setSelectedTopics(prev => {
+    setSelectedTopics((prev: Set<string>) => {
       const newSet = new Set(prev);
       if (newSet.has(topicId)) {
         newSet.delete(topicId);
@@ -207,7 +208,7 @@ export default function SubjectsScreen() {
     const allTopicIds = category.topics.map(t => t.id);
     const allSelected = allTopicIds.every(id => selectedTopics.has(id));
 
-    setSelectedTopics(prev => {
+    setSelectedTopics((prev: Set<string>) => {
       const newSet = new Set(prev);
       if (allSelected) {
         allTopicIds.forEach(id => newSet.delete(id));
@@ -474,15 +475,16 @@ export default function SubjectsScreen() {
                 pagingEnabled={false}
               >
             {circularCategories.map((category, index) => {
-              const fullySelected = isCategoryFullySelected(category);
-              const partiallySelected = isCategoryPartiallySelected(category);
-              const selectedCount = category.topics.filter(topic => selectedTopics.has(topic.id)).length;
-              
+              // Always use the actual category from the original array to ensure consistency
               const actualCategory = categories.find(c => c.id === category.id) || category;
+              
+              const fullySelected = isCategoryFullySelected(actualCategory);
+              const partiallySelected = isCategoryPartiallySelected(actualCategory);
+              const selectedCount = actualCategory.topics.filter(topic => selectedTopics.has(topic.id)).length;
 
               return (
                 <TouchableOpacity
-                  key={`${category.id}-${index}`}
+                  key={`${actualCategory.id}-${index}`}
                   style={[
                     styles.topicCard,
                     fullySelected && styles.topicCardSelected,
@@ -505,7 +507,7 @@ export default function SubjectsScreen() {
                       {partiallySelected && (
                         <View style={styles.partialBadge}>
                           <ThemedText style={styles.partialBadgeText}>
-                            {selectedCount}/{category.topics.length}
+                            {selectedCount}/{actualCategory.topics.length}
                           </ThemedText>
                         </View>
                       )}
@@ -514,15 +516,8 @@ export default function SubjectsScreen() {
                           style={styles.selectIndicator}
                           onPress={(e) => {
                             e.stopPropagation();
-                            setExpandedCategories(prev => {
-                              const newSet = new Set(prev);
-                              if (newSet.has(category.id)) {
-                                newSet.delete(category.id);
-                              } else {
-                                newSet.add(category.id);
-                              }
-                              return newSet;
-                            });
+                            setExpandedCategories(new Set([actualCategory.id]));
+                            setSelectedCategoryId(actualCategory.id);
                             setDropdownOpen(true);
                           }}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -535,10 +530,10 @@ export default function SubjectsScreen() {
                     <ThemedView style={styles.cardFooter}>
                       <ThemedView style={styles.cardFooterInner}>
                         <ThemedText style={styles.cardTopicName} numberOfLines={2}>
-                          {category.name}
+                          {actualCategory.name}
                         </ThemedText>
                         <ThemedText style={styles.cardSubtopicsCount}>
-                          {category.topics.length} subtopic{category.topics.length !== 1 ? 's' : ''}
+                          {actualCategory.topics.length} subtopic{actualCategory.topics.length !== 1 ? 's' : ''}
                         </ThemedText>
                       </ThemedView>
                     </ThemedView>
