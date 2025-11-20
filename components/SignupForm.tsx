@@ -19,6 +19,7 @@ interface SignupData {
   name: string;
   firstName?: string;
   lastName?: string;
+  role: "teacher" | "student";
 }
 
 interface SignupFormProps {
@@ -31,7 +32,8 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
     password: '',
     name: '',
     firstName: '',
-    lastName: ''
+    lastName: '',
+    role: 'student'
   });
   const [lastSignupAttempt, setLastSignupAttempt] = useState<number>(0);
   const [loading, setLoading] = useState(false);
@@ -93,12 +95,14 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
     try {
       setLoading(true);
       setLastSignupAttempt(now);
+      console.log('Signing up with role:', formData.role);
       const { data, error } = await signUp.email({
         email: formData.email,
         password: formData.password,
         name: formData.name,
         image: undefined,
-      });
+        role: formData.role,
+      } as any);
       
       console.log('Signup response - data:', data);
       console.log('Signup response - error:', error);
@@ -199,6 +203,45 @@ export default function SignupForm({ onBackToLogin }: SignupFormProps) {
         />
         <Text style={styles.hint}>Password must be at least 6 characters long</Text>
         
+        <View style={styles.roleContainer}>
+          <Text style={styles.roleLabel}>I am a: *</Text>
+          <View style={styles.roleButtons}>
+            <TouchableOpacity
+              style={[
+                styles.roleButton,
+                formData.role === "student" && styles.roleButtonActive,
+              ]}
+              onPress={() => setFormData({ ...formData, role: "student" })}
+            >
+              <Text
+                style={[
+                  styles.roleButtonText,
+                  formData.role === "student" && styles.roleButtonTextActive,
+                ]}
+              >
+                Student
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.roleButton,
+                formData.role === "teacher" && styles.roleButtonActive,
+              ]}
+              onPress={() => setFormData({ ...formData, role: "teacher" })}
+            >
+              <Text
+                style={[
+                  styles.roleButtonText,
+                  formData.role === "teacher" && styles.roleButtonTextActive,
+                ]}
+              >
+                Teacher
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
         <TextInput
           style={styles.input}
           placeholder="First Name (Optional)"
@@ -277,6 +320,41 @@ const styles = StyleSheet.create({
     marginTop: -10,
     marginBottom: 15,
     marginLeft: 5,
+  },
+  roleContainer: {
+    marginBottom: 15,
+  },
+  roleLabel: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: 'white',
+    alignItems: 'center',
+  },
+  roleButtonActive: {
+    borderColor: '#007AFF',
+    backgroundColor: '#E8F4FF',
+  },
+  roleButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  roleButtonTextActive: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   button: {
     backgroundColor: '#007AFF',

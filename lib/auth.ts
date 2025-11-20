@@ -22,6 +22,16 @@ export const auth = betterAuth({
     autoSignIn: true, // Allow auto sign-in for proper session management
     minPasswordLength: 6,
   },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        required: true,
+        defaultValue: "student",
+        input: true,
+      },
+    },
+  },
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
