@@ -1,9 +1,7 @@
 import { Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Alert, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { LaTeXRenderer } from '@/components/LaTeXRenderer';
 import { ThemedText } from '@/components/themed-text';
