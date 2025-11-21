@@ -36,6 +36,12 @@ export default function TabLayout() {
           title: 'Equations',
         }}
       />
+      <Tabs.Screen
+        name="subjects"
+        options={{
+          title: 'Subjects',
+        }}
+      />
     </Tabs>
   );
 }

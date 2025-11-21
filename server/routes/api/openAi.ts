@@ -28,8 +28,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
         }
 
         try {
-            ToggleLogs.log('Generating Algebra 1 word problem...', LogLevel.INFO);
-            OpenAIHandler.generateAlgebra1Problem()
+            const queryParams = UrlUtils.getQuery(req);
+            const topicsParam = queryParams.get('topics');
+            const topicIds = topicsParam ? topicsParam.split(',').filter(id => id.trim()) : [];
+            
+            ToggleLogs.log(`Generating math problem with ${topicIds.length} topic(s)...`, LogLevel.INFO);
+            
+            OpenAIHandler.generateMathProblem(topicIds)
                 .then((problemText: string) => {
                     ToggleLogs.log(`Generated problem: ${problemText.substring(0, 100)}...`, LogLevel.DEBUG);
                     UrlUtils.sendJson(res, 200, {

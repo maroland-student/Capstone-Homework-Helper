@@ -1,10 +1,16 @@
+import { Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 
-import { LaTeXRenderer } from '@/components/LaTeXRenderer';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { LaTeXRenderer } from '@/components/LaTeXRenderer';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useSubjects } from '@/lib/subjects-context';
+import { parseEquationData } from '@/utilities/equationParser';
+import { validateEquationData } from '@/utilities/equationValidator';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -15,10 +21,12 @@ interface EquationData {
 }
 
 export default function EquationsScreen() {
+  const { selectedTopics } = useSubjects();
   const [problem, setProblem] = useState<string | null>(null);
   const [equationData, setEquationData] = useState<EquationData | null>(null);
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
@@ -44,16 +52,136 @@ export default function EquationsScreen() {
     return true;
   };
 
+  const saveEquationAsJSON = async () => {
+    if (!equationData) {
+      if (Platform.OS === 'web') {
+        window.alert('Error: No equation data to save');
+      } else {
+        Alert.alert('Error', 'No equation data to save');
+      }
+      return;
+    }
+
+    setSaving(true);
+    
+    try {
+      const parsedData = parseEquationData(
+        equationData.equation,
+        equationData.substitutedEquation,
+        equationData.variables
+      );
+
+      const validation = validateEquationData(
+        equationData.equation,
+        equationData.substitutedEquation,
+        equationData.variables,
+        parsedData
+      );
+
+      if (!validation.isValid && validation.errors.length > 0) {
+        const errorMessage = `Validation found issues:\n\n${validation.errors.join('\n')}${validation.warnings.length > 0 ? '\n\nWarnings:\n' + validation.warnings.join('\n') : ''}\n\nYou can still save, but the data may not work correctly in a calculator.`;
+        
+        if (Platform.OS === 'web') {
+          const shouldContinue = window.confirm(
+            `${errorMessage}\n\nDo you want to save anyway?`
+          );
+          if (!shouldContinue) {
+            setSaving(false);
+            return;
+          }
+        } else {
+          Alert.alert(
+            'Validation Issues Found',
+            errorMessage + '\n\nSaving anyway...',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+
+      const jsonString = JSON.stringify(parsedData, null, 2);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `equation_${timestamp}.json`;
+      
+      let fileUri: string;
+      
+      if (Platform.OS === 'web') {
+        fileUri = '';
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        window.alert(`✓ File Saved Successfully!\n\nFilename: ${filename}\n\nFile will be downloaded to your Downloads folder.`);
+      } else {
+        const cacheDir = Paths.cache;
+        const file = cacheDir.createFile(filename, 'application/json');
+        file.write(jsonString, { encoding: 'utf8' });
+        fileUri = file.uri;
+        
+        const fileSize = new Blob([jsonString]).size;
+        Alert.alert(
+          '✓ File Saved Successfully!',
+          `Filename: ${filename}\n\nFile saved to:\n${fileUri}\n\nSize: ${(fileSize / 1024).toFixed(2)} KB`,
+          [
+            {
+              text: 'Share File',
+              onPress: async () => {
+                if (await Sharing.isAvailableAsync()) {
+                  try {
+                    await Sharing.shareAsync(fileUri, {
+                      mimeType: 'application/json',
+                      dialogTitle: 'Save Equation Data',
+                    });
+                  } catch (shareError: any) {
+                    Alert.alert('Share Error', `Could not open share dialog: ${shareError.message}`);
+                  }
+                } else {
+                  Alert.alert(
+                    'File Location',
+                    `File saved to:\n${fileUri}\n\nSharing is not available on this platform.`,
+                    [{ text: 'OK' }]
+                  );
+                }
+              },
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage = `✗ Save Failed\n\nFailed to save equation:\n\n${error.message}\n\nPlease try again.`;
+      
+      if (Platform.OS === 'web') {
+        window.alert(errorMessage);
+      } else {
+        Alert.alert('✗ Save Failed', errorMessage, [{ text: 'OK' }]);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const fetchMathProblem = async () => {
     try {
       setLoading(true);
       setError(null);
       setEquationData(null);
-
-      const response = await fetch(`${API_BASE_URL}/api/openai/math-problem`, {
-        signal: AbortSignal.timeout(30000),
-      });
-
+      
+      const topicIds = Array.from(selectedTopics);
+      const queryParams = topicIds.length > 0 
+        ? `?topics=${topicIds.join(',')}`
+        : '';
+      
+      const response = await fetch(`${API_BASE_URL}/api/openai/math-problem${queryParams}`);
+      
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         throw new Error(`Server error (${response.status}): ${errorText}`);
@@ -67,22 +195,64 @@ export default function EquationsScreen() {
 
       const fullProblem = data.problem || 'No problem generated';
       setProblem(fullProblem);
+      
+      setExtracting(true);
+      try {
+        const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ problem: fullProblem }),
+        });
 
-      // Extract equation from problem
-      await extractEquation(fullProblem);
-    } catch (err) {
-      console.error('Error fetching math problem:', err);
-
-      if (err instanceof Error) {
-        if (err.name === 'AbortError' || err.message.includes('timeout')) {
-          setError('Request timed out. Please check your connection and try again.');
-        } else if (err.message.includes('fetch')) {
-          setError('Network error. Please check your connection.');
+        if (extractResponse.ok) {
+          const extractedData = await extractResponse.json();
+          if (extractedData.equation) {
+            const parsedData = parseEquationData(
+              extractedData.equation,
+              extractedData.substitutedEquation,
+              extractedData.variables
+            );
+            
+            const validation = validateEquationData(
+              extractedData.equation,
+              extractedData.substitutedEquation,
+              extractedData.variables,
+              parsedData
+            );
+            
+            if (validation.errors.length > 0) {
+              console.error('AI extraction validation errors:', validation.errors);
+              const errorMessage = `Equation extraction has issues:\n${validation.errors.join('\n')}\n\nYou may need to try again or the equation may not work correctly in a calculator.`;
+              setError(errorMessage);
+            } else {
+              setError(null);
+              
+              if (validation.warnings.length > 0) {
+                console.warn('AI extraction validation warnings:', validation.warnings);
+                if (Platform.OS !== 'web') {
+                  Alert.alert(
+                    'Extraction Warning',
+                    `The extracted equation has some warnings:\n${validation.warnings.join('\n')}\n\nYou can still use it, but it may need correction.`,
+                    [{ text: 'OK' }]
+                  );
+                }
+              }
+            }
+            
+            setEquationData(extractedData);
+          } else {
+            setError('No equation was extracted from the problem. Please try again.');
+          }
         } else {
-          setError(`Failed to load math problem: ${err.message}`);
+          const errorData = await extractResponse.json().catch(() => ({}));
+          setError(`Failed to extract equation: ${errorData.message || 'Unknown error'}`);
         }
-      } else {
-        setError('An unexpected error occurred. Please try again.');
+      } catch (extractErr) {
+        console.error('Error extracting equation:', extractErr);
+      } finally {
+        setExtracting(false);
       }
     } finally {
       setLoading(false);
@@ -259,45 +429,63 @@ export default function EquationsScreen() {
             )}
 
             {equationData && equationData.equation && (
-              <ThemedView style={styles.equationContainer}>
-                <ThemedText type="subtitle" style={styles.equationLabel}>
-                  Extracted Equation:
-                </ThemedText>
+              <>
+                <ThemedView style={styles.equationContainer}>
+                  <ThemedText type="subtitle" style={styles.equationLabel}>
+                    Extracted Equation:
+                  </ThemedText>
+                  
+                  <ThemedView style={styles.equationBox}>
+                    <ThemedText style={styles.equationTitle}>Template:</ThemedText>
+                    <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
+                  </ThemedView>
 
-                {/* Template Equation */}
-                <ThemedView style={styles.equationBox}>
-                  <ThemedText style={styles.equationTitle}>Template:</ThemedText>
-                  <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
+                  {equationData.variables && equationData.variables.length > 0 && (
+                    <ThemedView style={styles.variablesBox}>
+                      <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
+                      <View style={styles.variablesList}>
+                        {equationData.variables.map((variable, index) => (
+                          <View key={index} style={styles.variableItem}>
+                            <ThemedText style={styles.variableText}>{variable}</ThemedText>
+                          </View>
+                        ))}
+                      </View>
+                    </ThemedView>
+                  )}
+
+                  {equationData.substitutedEquation && (
+                    <ThemedView style={styles.equationBox}>
+                      <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
+                      <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
+                    </ThemedView>
+                  )}
                 </ThemedView>
 
-                {/* Variables List */}
-                {equationData.variables && equationData.variables.length > 0 && (
-                  <ThemedView style={styles.variablesBox}>
-                    <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
-                    <View style={styles.variablesList}>
-                      {equationData.variables.map((variable, index) => (
-                        <View key={index} style={styles.variableItem}>
-                          <ThemedText style={styles.variableText}>{variable}</ThemedText>
-                        </View>
-                      ))}
-                    </View>
-                  </ThemedView>
-                )}
-
-                {/* Substituted Equation */}
-                {equationData.substitutedEquation && (
-                  <ThemedView style={styles.equationBox}>
-                    <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
-                    <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
-                  </ThemedView>
-                )}
-              </ThemedView>
+                <ThemedView style={styles.buttonContainer}>
+                  <TouchableOpacity 
+                    style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                    onPress={saveEquationAsJSON}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <ActivityIndicator size="small" color="#FFFFFF" style={styles.saveLoader} />
+                        <ThemedText style={styles.buttonText}>Saving...</ThemedText>
+                      </>
+                    ) : (
+                      <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
+                    )}
+                  </TouchableOpacity>
+                </ThemedView>
+              </>
             )}
           </>
         ) : (
           <ThemedView style={styles.centerContent}>
             <ThemedText style={styles.emptyText}>
-              Enter a math problem above or click "Random Problem" to get started!
+              {selectedTopics.size === 0 
+                ? 'Please select topics on the Subjects page first, then click "New Question" to get started!'
+                : 'Click "New Question" to get started!'}
             </ThemedText>
           </ThemedView>
         )}
@@ -373,8 +561,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  saveButton: {
+    backgroundColor: '#34C759',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 150,
+    alignItems: 'center',
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveLoader: {
+    marginRight: 0,
   },
   buttonText: {
     color: '#FFFFFF',

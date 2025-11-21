@@ -19,7 +19,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
-    autoSignIn: true,
+    autoSignIn: true, // Allow auto sign-in for proper session management
     minPasswordLength: 6,
   },
   user: {
@@ -45,20 +45,19 @@ export const auth = betterAuth({
         }
       },
       otpLength: 6,
-      expiresIn: 300,
+      expiresIn: 300, // 5 minutes
       allowedAttempts: 3,
       sendVerificationOnSignUp: false,
       disableSignUp: false,
-      storeOTP: 'plain',
+      storeOTP: 'plain', // Store OTP as plain text in database
     }),
   ],
   session: {
-    expiresIn: 60 * 60 * 24 * 7,
-    updateAge: 60 * 60 * 24,
-    freshAge: 60 * 60 * 24,
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 1 day
+    freshAge: 60 * 60 * 24, // 1 day - session is fresh if created within last 24 hours
     cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5,
+      enabled: false, // Disabled to prevent session nullification on reload/tab navigation
     },
   },
   trustedOrigins: [
@@ -72,13 +71,14 @@ export const auth = betterAuth({
   ],
   baseURL: "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET || "your-secret-key-change-in-production",
+  // Cookie security settings
   cookies: {
     sessionToken: {
       name: "better-auth.session-token",
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
+      secure: process.env.NODE_ENV === "production", // Only secure in production
+      sameSite: "lax", // Prevent CSRF attacks
+      maxAge: 60 * 60 * 24 * 7, // 7 days
     },
   },
 });
