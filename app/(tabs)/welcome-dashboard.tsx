@@ -6,12 +6,16 @@ import { Fonts } from "@/constants/theme";
 import { useState } from "react";
 import { StyleSheet } from "react-native";
 
-import { useSession } from "@/lib/auth-client";
 import Log, { LogLevel } from "@/server/utilities/toggle_logs";
-
-const [userRole, setUserRole] = useState<any | null>(null);
+import {  useSession } from '@/lib/auth-client';
 
 export default function WelcomeDashboardScreen() {
+    const { data: session, isLoading } = useSession();
+    const [ role, setRole ] = useState<string>("Unknown");
+
+    useEffect(() => {
+        if (session?.user?.role ))
+
     return (
         <ParallaxScrollView
             headerBackgroundColor={{ light: '#a265b4ff', dark: '#4a2556ff' }}
@@ -36,11 +40,13 @@ const getRole = async (): Promise<string> => {
     try {
         Log.log("Fetching user role...", LogLevel.INFO);
 
-        const { data: session, isPending } = useSession();
+        const { data: session } = useSession();
+        // Finish the method...
 
         return '';
     } catch (error: any) {
-        return '';
+        // Don't worry about error checking for now
+        return ''
     }
 }
 
