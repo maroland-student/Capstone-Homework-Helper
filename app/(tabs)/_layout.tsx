@@ -18,16 +18,16 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme].tint,
         tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
       }}>
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="welcome-dashboard"
         options={{
-          title: 'Dashboard',
+          title: 'Home',
         }}
       />
       <Tabs.Screen
