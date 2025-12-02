@@ -1,0 +1,183 @@
+{
+  "categories": [
+    {
+      "id": "a",
+      "name": "Foundations for Algebra",
+      "topics": [
+        { "id": "a1", "name": "Expressions" },
+        { "id": "a2", "name": "Combine Like Terms" },
+        { "id": "a3", "name": "Properties of Real Numbers" },
+        { "id": "a4", "name": "Exponents and Order of Operations" },
+        { "id": "a5", "name": "Absolute Value" },
+        { "id": "a6", "name": "Simplify Expressions" },
+        { "id": "a7", "name": "Evaluate Expressions" },
+        { "id": "a8", "name": "Write Expressions from Verbal" },
+        { "id": "a9", "name": "Intro to Equations" },
+        { "id": "a10", "name": "Patterns, Equations, Graphs" }
+      ]
+    },
+    {
+      "id": "b",
+      "name": "Equations",
+      "topics": [
+        { "id": "b1", "name": "Solve 1 Step Equations" },
+        { "id": "b2", "name": "Solve 2 Step Equations" },
+        { "id": "b3", "name": "Solve Multi Step Equations" },
+        { "id": "b4", "name": "Solve Equations with Variable on Both Sides" },
+        { "id": "b5", "name": "Literal Equations and Formulas" },
+        { "id": "b6", "name": "Solve Word Problems with 1 Unknown" },
+        { "id": "b7", "name": "Solve Word Problems with 2 or More Unknowns" },
+        { "id": "b8", "name": "Absolute Value Equations/Inequalities" },
+        { "id": "b9", "name": "Ratios and Proportions" },
+        { "id": "b10", "name": "Solve Proportions" },
+        { "id": "b11", "name": "Percent" },
+        { "id": "b12", "name": "Percent Change" }
+      ]
+    },
+    {
+      "id": "c",
+      "name": "Inequalities",
+      "topics": [
+        { "id": "c1", "name": "Properties of Sets" },
+        { "id": "c2", "name": "Write and Graph Inequalities" },
+        { "id": "c3", "name": "Solve Inequalities Using Addition and Subtraction" },
+        { "id": "c4", "name": "Solve Inequalities Using Multiplication and Division" },
+        { "id": "c5", "name": "Solve Multi Step Inequalities" },
+        { "id": "c6", "name": "Union and Intersection of Sets" },
+        { "id": "c7", "name": "Compound Inequalities" }
+      ]
+    },
+    {
+      "id": "d",
+      "name": "Functions and Linear Equations",
+      "topics": [
+        { "id": "d1", "name": "Coordinate Plane" },
+        { "id": "d2", "name": "Identify Relations and Functions" },
+        { "id": "d3", "name": "Function Notation" },
+        { "id": "d4", "name": "Write and Graph Function Rule" },
+        { "id": "d5", "name": "Direct Variation" },
+        { "id": "d6", "name": "Slope" },
+        { "id": "d7", "name": "Write and Graph Equations Using Slope Intercept Form" },
+        { "id": "d8", "name": "Write and Graph Equations Using Point Slope Form" },
+        { "id": "d9", "name": "Write and Graph Linear Equations in Standard Form" },
+        { "id": "d10", "name": "Write Equations of Parallel Lines" },
+        { "id": "d11", "name": "Write Equations of Perpendicular Lines" },
+        { "id": "d12", "name": "Write and Graph Absolute Value Functions" },
+        { "id": "d13", "name": "Write Inverse Function Equations" },
+        { "id": "d14", "name": "Arithmetic Sequences" },
+        { "id": "d15", "name": "Scatter Plots and Lines of Best Fit" }
+      ]
+    },
+    {
+      "id": "e",
+      "name": "Systems of Equations and Inequalities",
+      "topics": [
+        { "id": "e1", "name": "Identify Systems of Equations" },
+        { "id": "e2", "name": "Solve Systems of Equations by Graphing" },
+        { "id": "e3", "name": "Solve Systems of Equations by Substitution" },
+        { "id": "e4", "name": "Solve Systems of Equations by Elimination" },
+        { "id": "e5", "name": "Graph Inequalities in Two Variables" },
+        { "id": "e6", "name": "Solve Systems of Inequalities" }
+      ]
+    },
+    {
+      "id": "f",
+      "name": "Exponents and Exponential Functions",
+      "topics": [
+        { "id": "f1", "name": "Zero and Negative Exponents" },
+        { "id": "f2", "name": "Multiplication Properties of Exponents" },
+        { "id": "f3", "name": "Division Properties of Exponents" },
+        { "id": "f4", "name": "Rational Exponents and Radicals" },
+        { "id": "f5", "name": "Evaluate and Rewrite Exponential Expressions" },
+        { "id": "f6", "name": "Solve Equations with Exponents" },
+        { "id": "f7", "name": "Scientific Notation" },
+        { "id": "f8", "name": "Multiply and Divide Monomials" },
+        { "id": "f9", "name": "Write and Graph Exponential Functions in y=ab^x Form" },
+        { "id": "f10", "name": "Exponential Growth and Decay" },
+        { "id": "f11", "name": "Write and Graph Transformations of Exponential Functions" },
+        { "id": "f12", "name": "Solve Word Problems Using Exponential Functions" },
+        { "id": "f13", "name": "Geometric Sequences" }
+      ]
+    },
+    {
+      "id": "g",
+      "name": "Polynomials",
+      "topics": [
+        { "id": "g1", "name": "Identify Types of Polynomials" },
+        { "id": "g2", "name": "Add and Subtract Polynomials" },
+        { "id": "g3", "name": "Multiply by a Monomial" },
+        { "id": "g4", "name": "Multiply by a Binomial" },
+        { "id": "g5", "name": "FOIL and Special Cases" },
+        { "id": "g6", "name": "Factor Out GCF" },
+        { "id": "g7", "name": "Factor x^2+bx+c" },
+        { "id": "g8", "name": "Factor ax^2+bx+c" },
+        { "id": "g9", "name": "Factor Special Products" },
+        { "id": "g10", "name": "Factor by Grouping" },
+        { "id": "g11", "name": "Complete Factorization" }
+      ]
+    },
+    {
+      "id": "h",
+      "name": "Quadratics",
+      "topics": [
+        { "id": "h1", "name": "Quadratic Graphs and Properties" },
+        { "id": "h2", "name": "Quadratic Functions" },
+        { "id": "h3", "name": "Solve Quadratic Equation by Graphing" },
+        { "id": "h4", "name": "Solve Quadratic Equation by Factoring" },
+        { "id": "h5", "name": "Solve Quadratic Equation Using Square Roots" },
+        { "id": "h6", "name": "Solve Quadratic Equations by Completing the Square" },
+        { "id": "h7", "name": "Quadratic Formula and the Discriminant" },
+        { "id": "h8", "name": "Solve Quadratic Equation Using Quadratic Formula" },
+        { "id": "h9", "name": "Compare Linear, Exponential and Quadratic Functions" },
+        { "id": "h10", "name": "Systems of Linear and Quadratic Equations" }
+      ]
+    },
+    {
+      "id": "i",
+      "name": "Radical Expressions and Equations",
+      "topics": [
+        { "id": "i1", "name": "Properties of Radicals" },
+        { "id": "i2", "name": "Simplify Radicals" },
+        { "id": "i3", "name": "Rationalize the Denominator; Conjugates" },
+        { "id": "i4", "name": "Multiply and Divide Radical Expressions" },
+        { "id": "i5", "name": "Add and Subtract Radical Expressions" },
+        { "id": "i6", "name": "Solve Radical Equations" },
+        { "id": "i7", "name": "Graph Square Root Functions" }
+      ]
+    },
+    {
+      "id": "j",
+      "name": "Rational Expressions",
+      "topics": [
+        { "id": "j1", "name": "Simplify Rational Expressions" },
+        { "id": "j2", "name": "Multiply and Divide Rational Expressions" },
+        { "id": "j3", "name": "Divide Polynomials" },
+        { "id": "j4", "name": "Add and Subtract Rational Expressions" },
+        { "id": "j5", "name": "Solve Rational Equations" },
+        { "id": "j6", "name": "Solve Complex Fractions" },
+        { "id": "j7", "name": "Inverse Variation" },
+        { "id": "j8", "name": "Graph Rational Functions" },
+        { "id": "j9", "name": "Solve Word Problems with Rational Expressions" }
+      ]
+    },
+    {
+      "id": "k",
+      "name": "Data Analysis and Probability",
+      "topics": [
+        { "id": "k1", "name": "Frequency and Histograms" },
+        { "id": "k2", "name": "Measures of Central Tendency and Variation" },
+        { "id": "k3", "name": "Box and Whisker Plots" },
+        { "id": "k4", "name": "Data Representation" },
+        { "id": "k5", "name": "Interpret Data" },
+        { "id": "k6", "name": "Factorials" },
+        { "id": "k7", "name": "Permutations" },
+        { "id": "k8", "name": "Combinations" },
+        { "id": "k9", "name": "Theoretical and Experimental Probability" },
+        { "id": "k10", "name": "Counting Principle" },
+        { "id": "k11", "name": "Tree Diagrams" },
+        { "id": "k12", "name": "Probability of Compound Events" }
+      ]
+    }
+  ]
+}
+

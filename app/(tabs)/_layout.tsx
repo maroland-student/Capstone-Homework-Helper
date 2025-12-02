@@ -18,8 +18,14 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme].tint,
         tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
       }}>
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="index"
+        options={{
+          title: 'Home',
+        }}
+      /> */}
+      <Tabs.Screen
+        name="welcome-dashboard"
         options={{
           title: 'Home',
         }}
@@ -34,6 +40,24 @@ export default function TabLayout() {
         name="equations"
         options={{
           title: 'Equations',
+        }}
+      />
+      <Tabs.Screen
+        name="subjects"
+        options={{
+          title: 'Subjects',
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+        }}
+      />
+      <Tabs.Screen
+        name="assignments"
+        options={{
+          title: 'Assignments',
         }}
       />
     </Tabs>
