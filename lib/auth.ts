@@ -70,7 +70,17 @@ export const auth = betterAuth({
     "capstone-exploration://",
   ],
   baseURL: "http://localhost:3000",
-  secret: process.env.BETTER_AUTH_SECRET || "your-secret-key-change-in-production",
+  secret: (() => {
+    const secret = process.env.BETTER_AUTH_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('BETTER_AUTH_SECRET environment variable is required in production');
+      }
+      console.warn('WARNING: BETTER_AUTH_SECRET not set. Using development default. Set this in production!');
+      return "development-secret-key-only-do-not-use-in-production";
+    }
+    return secret;
+  })(),
   // Cookie security settings
   cookies: {
     sessionToken: {
