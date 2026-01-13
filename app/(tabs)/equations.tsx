@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { LaTeXRenderer } from '@/components/LaTeXRenderer';
+import MathProblemModal from '@/components/MathProblemModal';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -29,6 +30,7 @@ export default function EquationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+  const [showProblemModal, setShowProblemModal] = useState(false);
 
   const validateInput = (text: string): boolean => {
     setInputError(null);
@@ -423,6 +425,13 @@ export default function EquationsScreen() {
               <ThemedText style={styles.problemText}>{problem}</ThemedText>
             </ThemedView>
 
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowProblemModal(true)}
+            >
+              <ThemedText style={styles.modalButtonText}>Practice Problem</ThemedText>
+            </TouchableOpacity>
+
             {extracting && (
               <ThemedView style={styles.centerContent}>
                 <ActivityIndicator size="small" />
@@ -490,6 +499,18 @@ export default function EquationsScreen() {
           </ThemedView>
         )}
       </ThemedView>
+
+      {/* Math Problem Modal */}
+      <MathProblemModal
+        visible={showProblemModal}
+        problem={problem}
+        onClose={() => setShowProblemModal(false)}
+        onSubmit={(answer) => {
+          // Placeholder for future functionality
+          console.log('Answer submitted:', answer);
+          setShowProblemModal(false);
+        }}
+      />
     </ParallaxScrollView>
   );
 }
@@ -577,6 +598,18 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginTop: 8,
     alignItems: 'center',
+  },
+  modalButton: {
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: '#34C759',
