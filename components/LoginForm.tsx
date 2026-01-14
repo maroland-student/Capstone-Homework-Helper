@@ -65,16 +65,16 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       // add function to recover email tmmr
       // call better auth post request to recover email
       console.log('Email recovery requested for:', recoveryData);
-      
+
       // add api call to recover email
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       if (Platform.OS === 'web') {
         window.alert('Account information sent to your registered email address');
       } else {
         Alert.alert('Success', 'Account information sent to your registered email address');
       }
-      
+
       setShowForgotEmailModal(false);
       setRecoveryData({ firstName: '', lastName: '', phoneNumber: '' });
     } catch (error) {
@@ -97,7 +97,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
   const handleOTPLoginSuccess = (data: any) => {
     console.log('OTP Login successful:', data);
     setHasExplicitlyLoggedIn(true);
-    router.replace('/(tabs)/explore');
+    router.replace('/(tabs)/welcome-dashboard');
   };
 
   const handleOTPLoginError = (error: any) => {
@@ -133,14 +133,14 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     try {
       setResetLoading(true);
       console.log('Password reset requested for:', resetEmail);
-      
+
       // Use the new OTP-based password reset
       const { emailOtp } = await import('@/lib/auth-client');
       const { data, error } = await emailOtp.sendVerificationOtp({
         email: resetEmail,
         type: 'forget-password',
       });
-      
+
       if (error) {
         if (Platform.OS === 'web') {
           window.alert(`Error: ${error.message || 'Failed to send password reset OTP'}`);
@@ -176,7 +176,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         'Email and password are required',
         'Please enter both email and password'
       );
-      
+
       if (Platform.OS === 'web') {
         window.alert(`Error: ${error.userMessage}`);
       } else {
@@ -192,18 +192,18 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         password: formData.password,
         rememberMe: true
       });
-      
+
       console.log('Login response - data:', data);
       console.log('Login response - error:', error);
-      
+
       if (data) {
         console.log('Login successful:', data);
         setHasExplicitlyLoggedIn(true);
-        router.replace('/(tabs)/explore');
+        router.replace('/(tabs)/welcome-dashboard');
       } else if (error) {
         const appError = parseAuthError(error);
         console.error(`[${appError.type}] Login error:`, appError.message);
-        
+
         if (Platform.OS === 'web') {
           window.alert(`Error: ${appError.userMessage}`);
         } else {
@@ -216,7 +216,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           'No response from server',
           'Invalid email or password'
         );
-        
+
         if (Platform.OS === 'web') {
           window.alert(`Error: ${error.userMessage}`);
         } else {
@@ -226,7 +226,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     } catch (error: any) {
       const appError = parseNetworkError(error);
       console.error(`[${appError.type}] Login error:`, appError.message);
-      
+
       if (Platform.OS === 'web') {
         window.alert(`Error: ${appError.userMessage}`);
       } else {
@@ -262,7 +262,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome Back</Text>
       <Text style={styles.subtitle}>Sign in to continue</Text>
-      
+
       <View style={styles.form}>
         <TextInput
           style={styles.input}
@@ -272,7 +272,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        
+
         <TextInput
           style={styles.input}
           placeholder="Password"
@@ -280,7 +280,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           onChangeText={(text) => setFormData({ ...formData, password: text })}
           secureTextEntry
         />
-        
+
         <View style={styles.forgotContainer}>
           <TouchableOpacity onPress={handleForgotEmail}>
             <Text style={styles.forgotLink}>Forgot Email?</Text>
@@ -289,9 +289,9 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
             <Text style={styles.forgotLink}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
           disabled={loading}
         >
@@ -302,19 +302,19 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.otpLink} 
+        <TouchableOpacity
+          style={styles.otpLink}
           onPress={() => setShowOTPLogin(true)}
         >
           <Text style={styles.otpLinkText}>Sign In with OTP</Text>
         </TouchableOpacity>
-        
+
         <View style={styles.helpContainer}>
           <Text style={styles.helpText}>
             Having trouble signing in? Try using OTP or make sure you're using the correct email and password.
           </Text>
         </View>
-        
+
         {onSignupPress && (
           <View style={styles.signupContainer}>
             <Text style={styles.signupText}>Don't have an account? </Text>
@@ -325,7 +325,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         )}
       </View>
 
-      {}
+      { }
       <Modal
         visible={showForgotPasswordModal}
         transparent={true}
@@ -338,7 +338,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
             <Text style={styles.modalSubtitle}>
               Enter the email address associated with your account and we'll send you a verification code to reset your password.
             </Text>
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Enter your email address"
@@ -348,7 +348,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               autoCapitalize="none"
               autoFocus
             />
-            
+
             <View style={styles.modalButtonContainer}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalCancelButton]}
@@ -356,7 +356,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               >
                 <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalSubmitButton, resetLoading && styles.modalButtonDisabled]}
                 onPress={handlePasswordReset}
@@ -373,7 +373,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         </View>
       </Modal>
 
-      {}
+      { }
       <Modal
         visible={showForgotEmailModal}
         transparent={true}
@@ -386,7 +386,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
             <Text style={styles.modalSubtitle}>
               Enter your account details below and we'll send your email address to your registered contact information.
             </Text>
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="First Name"
@@ -395,7 +395,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               autoCapitalize="words"
               autoFocus
             />
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Last Name"
@@ -403,7 +403,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               onChangeText={(text) => setRecoveryData({ ...recoveryData, lastName: text })}
               autoCapitalize="words"
             />
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Phone Number"
@@ -411,7 +411,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               onChangeText={(text) => setRecoveryData({ ...recoveryData, phoneNumber: text })}
               keyboardType="phone-pad"
             />
-            
+
             <View style={styles.modalButtonContainer}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalCancelButton]}
@@ -419,7 +419,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               >
                 <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalSubmitButton, recoveryLoading && styles.modalButtonDisabled]}
                 onPress={handleEmailRecovery}
