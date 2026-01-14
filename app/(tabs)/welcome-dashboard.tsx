@@ -6,6 +6,7 @@ import { Fonts } from "@/constants/theme";
 import { useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
 
+
 import { useSession } from '@/lib/auth-client';
 
 const formatString = (str: string): string => {
@@ -54,6 +55,7 @@ export default function WelcomeDashboardScreen() {
                     Welcome to your Dashboard, {formatString(session?.user?.name ?? 'User')}!
                 </ThemedText>
             </ThemedView>
+            
             <ThemedView style={styles.bodyContainer}>
                 <ThemedText type="subtitle">
                     {roleString}
@@ -62,6 +64,7 @@ export default function WelcomeDashboardScreen() {
                     This is your personalized dashboard where you can access all your courses, track your progress, and manage your account settings. Explore the features available to you and make the most out of your learning experience!
                 </ThemedText>
             </ThemedView>
+            
         </ParallaxScrollView>
     );
 }
