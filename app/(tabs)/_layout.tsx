@@ -30,12 +30,12 @@ export default function TabLayout() {
           title: 'Home',
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="explore"
         options={{
           title: 'Explore',
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="equations"
         options={{

@@ -97,7 +97,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
   const handleOTPLoginSuccess = (data: any) => {
     console.log('OTP Login successful:', data);
     setHasExplicitlyLoggedIn(true);
-    router.replace('/(tabs)/explore');
+    router.replace('/(tabs)/welcome-dashboard');
   };
 
   const handleOTPLoginError = (error: any) => {
@@ -199,7 +199,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       if (data) {
         console.log('Login successful:', data);
         setHasExplicitlyLoggedIn(true);
-        router.replace('/(tabs)/explore');
+        router.replace('/(tabs)/welcome-dashboard');
       } else if (error) {
         const appError = parseAuthError(error);
         console.error(`[${appError.type}] Login error:`, appError.message);
