@@ -4,7 +4,9 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
 import { useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { Alert, StyleSheet } from "react-native";
+
+import { DashboardCard } from "@/components/ui/dashboard-card";
 
 
 import { useSession } from '@/lib/auth-client';
@@ -64,6 +66,41 @@ export default function WelcomeDashboardScreen() {
                     This is your personalized dashboard where you can access all your courses, track your progress, and manage your account settings. Explore the features available to you and make the most out of your learning experience!
                 </ThemedText>
             </ThemedView>
+
+            <ThemedView style={styles.cardsContainer}>
+
+                <DashboardCard
+                    title = "My Courses"
+                    description="Pick up where you left off"
+                    style={styles.cardItem}
+                    onPress={() => Alert.alert("Go to Courses", "Coming Soon", [{ text: "OK"}])}
+                />
+
+                <DashboardCard
+                    title = "Stats"
+                    description="View information about your learning"
+                    style={styles.cardItem}
+                    onPress={() => Alert.alert("Go to Stats", "Coming Soon", [{ text: "OK"}])}
+                />
+
+                <DashboardCard
+                    title = "Account Settings"
+                    description="Update Profile and Security Settings"
+                    style={styles.cardItem}
+                    onPress={() => Alert.alert("Go to Settings", "Coming Soon", [{ text: "OK"}])}
+                />
+
+                
+
+
+
+            </ThemedView>
+
+
+
+
+
+
             
         </ParallaxScrollView>
     );
@@ -81,7 +118,35 @@ const getRole = async (): Promise<string> => {
 }
 
 const styles = StyleSheet.create({
-    headerImage: { color: '#cd8ec2ff', bottom: -90, left: -35, position: 'absolute' },
-    titleContainer: { flexDirection: 'row', gap: 8 },
-    bodyContainer: { marginTop: 20  },
+    headerImage: { 
+        color: '#cd8ec2ff', 
+        bottom: -90, 
+        left: -35, 
+        position: 'absolute' 
+    },
+
+    titleContainer: { 
+        flexDirection: 'row', 
+        gap: 8 
+    },
+
+    bodyContainer: { 
+        marginTop: 20  
+    },
+
+    cardsContainer: {
+        marginTop: 16,
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 24,
+        
+    },
+
+    cardItem: {
+        width: 220,
+        height: 110,
+    }
+
+
 });
