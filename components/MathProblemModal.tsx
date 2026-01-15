@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -23,18 +23,38 @@ export default function MathProblemModal({
   onSubmit,
 }: MathProblemModalProps) {
   const [answer, setAnswer] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  // Reset feedback when modal opens
+  useEffect(() => {
+    if (visible) {
+      setFeedbackMessage(null);
+      setAnswer('');
+    }
+  }, [visible]);
 
   const handleSubmit = () => {
-    if (onSubmit) {
-      onSubmit(answer);
+    if (answer.trim()) {
+      setFeedbackMessage('Text submitted!');
+      if (onSubmit) {
+        onSubmit(answer);
+      }
+      // Clear feedback after 3 seconds to ensure it's visible
+      setTimeout(() => {
+        setFeedbackMessage(null);
+        setAnswer('');
+      }, 3000);
     }
-    // Reset answer when closing
-    setAnswer('');
   };
 
   const handleClose = () => {
+    setFeedbackMessage('Button clicked!');
     setAnswer('');
-    onClose();
+    // Clear feedback after 1 second, then close
+    setTimeout(() => {
+      setFeedbackMessage(null);
+      onClose();
+    }, 1000);
   };
 
   return (
@@ -71,6 +91,13 @@ export default function MathProblemModal({
               autoCapitalize="none"
             />
           </View>
+
+          {/* Feedback Message */}
+          {feedbackMessage && (
+            <View style={styles.feedbackContainer}>
+              <Text style={styles.feedbackText}>{feedbackMessage}</Text>
+            </View>
+          )}
 
           {/* Action Buttons */}
           <View style={styles.buttonContainer}>
@@ -196,5 +223,22 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  feedbackContainer: {
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    minHeight: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feedbackText: {
+    color: '#2E7D32',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

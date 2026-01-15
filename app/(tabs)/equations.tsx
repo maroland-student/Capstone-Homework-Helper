@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { LaTeXRenderer } from '@/components/LaTeXRenderer';
-import MathProblemModal from '@/components/MathProblemModal';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -23,14 +22,15 @@ interface EquationData {
 export default function EquationsScreen() {
   const { selectedTopics } = useSubjects();
   const [problem, setProblem] = useState<string | null>(null);
-  const [equationData, setEquationData] = useState<EquationData | null>(null);
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
-  const [showProblemModal, setShowProblemModal] = useState(false);
+  const [answer, setAnswer] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [equationData, setEquationData] = useState<EquationData | null>(null);
 
   const validateInput = (text: string): boolean => {
     setInputError(null);
@@ -51,6 +51,102 @@ export default function EquationsScreen() {
     }
 
     return true;
+  };
+
+  const extractEquation = async (problemText: string) => {
+    setExtracting(true);
+    let extractResponse: Response | null = null;
+    try {
+      extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ problem: problemText }),
+      });
+
+      if (!extractResponse.ok) {
+        const errorText = await extractResponse.text().catch(() => 'Unknown error');
+        console.error(`Equation extraction failed with status ${extractResponse.status}:`, errorText);
+        setEquationData(null);
+        return;
+      }
+
+      const extractedData = await extractResponse.json();
+
+      if (!extractedData || typeof extractedData !== 'object') {
+        console.error('Invalid equation extraction response format:', extractedData);
+        setEquationData(null);
+        return;
+      }
+
+      if (extractedData.equation) {
+        const eqData = {
+          equation: extractedData.equation || '',
+          substitutedEquation: extractedData.substitutedEquation || '',
+          variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+        };
+        setEquationData(eqData);
+
+        // Validate the extracted equation
+        try {
+          const parsedData = parseEquationData(
+            eqData.equation,
+            eqData.substitutedEquation,
+            eqData.variables
+          );
+
+          const validation = validateEquationData(
+            eqData.equation,
+            eqData.substitutedEquation,
+            eqData.variables,
+            parsedData
+          );
+
+          if (validation.errors.length > 0) {
+            console.error('AI extraction validation errors:', validation.errors);
+            const errorMessage = `Equation extraction has issues:\n${validation.errors.join('\n')}\n\nYou may need to try again or the equation may not work correctly in a calculator.`;
+            setError(errorMessage);
+          } else {
+            setError(null);
+
+            if (validation.warnings.length > 0) {
+              console.warn('AI extraction validation warnings:', validation.warnings);
+              if (Platform.OS !== 'web') {
+                Alert.alert(
+                  'Extraction Warning',
+                  `The extracted equation has some warnings:\n${validation.warnings.join('\n')}\n\nYou can still use it, but it may need correction.`,
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          }
+        } catch (parseErr) {
+          console.error('Error parsing/validating equation:', parseErr);
+          // Continue even if parsing fails
+        }
+      } else {
+        console.error('No equation was extracted from the problem. Response:', extractedData);
+        setError('No equation was extracted from the problem. Please try again.');
+        setEquationData(null);
+      }
+    } catch (extractErr) {
+      console.error('Error extracting equation:', extractErr);
+      try {
+        if (extractResponse) {
+          const errorData = await extractResponse.json().catch(() => ({}));
+          console.error('Extraction error details:', errorData);
+          setError(`Failed to extract equation: ${errorData.message || 'Unknown error'}`);
+        } else {
+          setError(`Failed to extract equation: ${extractErr instanceof Error ? extractErr.message : 'Unknown error'}`);
+        }
+      } catch {
+        setError(`Failed to extract equation: ${extractErr instanceof Error ? extractErr.message : 'Unknown error'}`);
+      }
+      setEquationData(null);
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const saveEquationAsJSON = async () => {
@@ -182,7 +278,7 @@ export default function EquationsScreen() {
         : '';
 
       const response = await fetch(`${API_BASE_URL}/api/openai/math-problem${queryParams}`);
-
+      
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
         throw new Error(`Server error (${response.status}): ${errorText}`);
@@ -242,16 +338,22 @@ export default function EquationsScreen() {
               }
             }
 
-            setEquationData(extractedData);
+            setEquationData({
+              equation: extractedData.equation || '',
+              substitutedEquation: extractedData.substitutedEquation || '',
+              variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+            });
           } else {
             setError('No equation was extracted from the problem. Please try again.');
           }
         } else {
           const errorData = await extractResponse.json().catch(() => ({}));
+          console.error(`Equation extraction failed with status ${extractResponse.status}`);
           setError(`Failed to extract equation: ${errorData.message || 'Unknown error'}`);
         }
       } catch (extractErr) {
         console.error('Error extracting equation:', extractErr);
+        // Don't show error for extraction failures, just continue without equation
       } finally {
         setExtracting(false);
       }
@@ -263,69 +365,29 @@ export default function EquationsScreen() {
     }
   };
 
-  const extractEquation = async (problemText: string) => {
-    setExtracting(true);
-    try {
-      const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ problem: problemText }),
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (!extractResponse.ok) {
-        console.warn(`Equation extraction failed with status ${extractResponse.status}`);
-        return; // Silently continue without equation
-      }
-
-      const extractedData = await extractResponse.json();
-
-      if (!extractedData || typeof extractedData !== 'object') {
-        console.warn('Invalid equation extraction response format');
-        return;
-      }
-
-      if (extractedData.equation) {
-        setEquationData({
-          equation: extractedData.equation || '',
-          substitutedEquation: extractedData.substitutedEquation || '',
-          variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
-        });
-      }
-    } catch (extractErr) {
-      console.error('Error extracting equation:', extractErr);
-      // Don't show error for extraction failures, just continue without equation
-    } finally {
-      setExtracting(false);
-    }
-  };
-
   const handleSubmitCustomProblem = async () => {
     if (!validateInput(userInput)) {
       return;
     }
 
     try {
-      setLoading(true);
       setError(null);
       setInputError(null);
       setEquationData(null);
 
       const trimmedProblem = userInput.trim();
       setProblem(trimmedProblem);
+      setUserInput('');
+
+      // Clear input after successful submission
+      setAnswer('');
+      setFeedbackMessage(null);
 
       // Extract equation from user's problem
       await extractEquation(trimmedProblem);
-
-      // Clear input after successful submission
-      setUserInput('');
     } catch (err) {
       console.error('Error processing custom problem:', err);
       setError('Failed to process your problem. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -337,7 +399,25 @@ export default function EquationsScreen() {
     }
   };
 
-  const isProcessing = loading || extracting;
+  const handleSubmitAnswer = () => {
+    if (answer.trim()) {
+      setFeedbackMessage('Text submitted!');
+      console.log('Answer submitted:', answer);
+      // Clear feedback after 3 seconds
+      setTimeout(() => {
+        setFeedbackMessage(null);
+        setAnswer('');
+      }, 3000);
+    }
+  };
+
+  const handleNewQuestion = () => {
+    setProblem(null);
+    setAnswer('');
+    setFeedbackMessage(null);
+    setError(null);
+    setEquationData(null);
+  };
 
   return (
     <ParallaxScrollView
@@ -350,167 +430,186 @@ export default function EquationsScreen() {
         <ThemedText type="subtitle">Let's Practice!</ThemedText>
       </ThemedView>
 
-      {/* Input Section */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.inputSection}
-      >
-        <ThemedView style={styles.inputContainer}>
-          <ThemedText style={styles.inputLabel}>Enter Your Math Problem:</ThemedText>
-          <TextInput
-            style={[
-              styles.textInput,
-              inputError ? styles.textInputError : null,
-            ]}
-            placeholder="e.g., A car travels 120 km in 2 hours. What is its speed?"
-            placeholderTextColor="#999"
-            value={userInput}
-            onChangeText={handleInputChange}
-            multiline
-            numberOfLines={4}
-            maxLength={2000}
-            editable={!isProcessing}
-          />
-          {inputError && (
-            <ThemedText style={styles.inputErrorText}>{inputError}</ThemedText>
-          )}
-          <ThemedText style={styles.characterCount}>
-            {userInput.length}/2000 characters
-          </ThemedText>
+      {/* Status Display */}
+      {loading && (
+        <ThemedView style={styles.centerContent}>
+          <ActivityIndicator size="large" />
+          <ThemedText style={styles.loadingText}>Generating problem...</ThemedText>
         </ThemedView>
+      )}
 
-        <ThemedView style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.submitButton, isProcessing && styles.buttonDisabled]}
-            onPress={handleSubmitCustomProblem}
-            disabled={isProcessing}
-          >
-            <ThemedText style={styles.buttonText}>
-              {isProcessing ? 'Processing...' : 'Submit Problem'}
-            </ThemedText>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.generateButton, isProcessing && styles.buttonDisabled]}
-            onPress={fetchMathProblem}
-            disabled={isProcessing}
-          >
-            <ThemedText style={styles.buttonText}>
-              Random Problem
-            </ThemedText>
-          </TouchableOpacity>
+      {error && (
+        <ThemedView style={styles.centerContent}>
+          <ThemedText style={styles.errorText}>{error}</ThemedText>
         </ThemedView>
-      </KeyboardAvoidingView>
+      )}
 
-      {/* Problem Display Section */}
-      <ThemedView style={styles.problemContainer}>
-        {loading && !problem ? (
-          <ThemedView style={styles.centerContent}>
-            <ActivityIndicator size="large" />
-            <ThemedText style={styles.loadingText}>Generating problem...</ThemedText>
-          </ThemedView>
-        ) : error ? (
-          <ThemedView style={styles.centerContent}>
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => setError(null)}
-            >
-              <ThemedText style={styles.retryButtonText}>Dismiss</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        ) : problem ? (
-          <>
-            <ThemedView style={styles.problemBox}>
-              <ThemedText style={styles.problemText}>{problem}</ThemedText>
+      {/* Main Practice Section - Question and Answer */}
+      {problem && !loading && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.practiceSection}
+        >
+          {/* Question Display */}
+          <ThemedView style={styles.questionSection}>
+            <ThemedText style={styles.questionLabel}>Question:</ThemedText>
+            <ThemedView style={styles.questionBox}>
+              <ThemedText style={styles.questionText}>{problem}</ThemedText>
             </ThemedView>
+          </ThemedView>
 
+          {/* Extracted Equation Display */}
+          {extracting && (
+            <ThemedView style={styles.centerContent}>
+              <ActivityIndicator size="small" />
+              <ThemedText style={styles.loadingText}>Extracting equation...</ThemedText>
+            </ThemedView>
+          )}
+
+          {equationData && equationData.equation && !extracting && (
+            <ThemedView style={styles.equationContainer}>
+              <ThemedText style={styles.equationLabel}>Extracted Equation:</ThemedText>
+              
+              <ThemedView style={styles.equationBox}>
+                <ThemedText style={styles.equationTitle}>Template:</ThemedText>
+                <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
+              </ThemedView>
+
+              {equationData.substitutedEquation && (
+                <ThemedView style={styles.equationBox}>
+                  <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
+                  <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
+                </ThemedView>
+              )}
+
+              {equationData.variables && equationData.variables.length > 0 && (
+                <ThemedView style={styles.variablesBox}>
+                  <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
+                  <View style={styles.variablesList}>
+                    {equationData.variables.map((variable, index) => (
+                      <View key={index} style={styles.variableItem}>
+                        <ThemedText style={styles.variableText}>{variable}</ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                </ThemedView>
+              )}
+
+              {/* Save Button */}
+              <ThemedView style={styles.saveButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                  onPress={saveEquationAsJSON}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <>
+                      <ActivityIndicator size="small" color="#FFFFFF" style={styles.saveLoader} />
+                      <ThemedText style={styles.buttonText}>Saving...</ThemedText>
+                    </>
+                  ) : (
+                    <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
+                  )}
+                </TouchableOpacity>
+              </ThemedView>
+            </ThemedView>
+          )}
+
+          {/* Answer Input */}
+          <ThemedView style={styles.answerSection}>
+            <ThemedText style={styles.answerLabel}>Your Answer:</ThemedText>
+            <TextInput
+              style={styles.answerInput}
+              placeholder="Enter your answer here..."
+              placeholderTextColor="#999"
+              value={answer}
+              onChangeText={setAnswer}
+              multiline={false}
+              keyboardType="default"
+              autoCapitalize="none"
+            />
+          </ThemedView>
+
+          {/* Feedback Message */}
+          {feedbackMessage && (
+            <ThemedView style={styles.feedbackContainer}>
+              <ThemedText style={styles.feedbackText}>{feedbackMessage}</ThemedText>
+            </ThemedView>
+          )}
+
+          {/* Action Buttons */}
+          <ThemedView style={styles.actionButtonsContainer}>
             <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setShowProblemModal(true)}
+              style={[styles.submitAnswerButton, !answer.trim() && styles.buttonDisabled]}
+              onPress={handleSubmitAnswer}
+              disabled={!answer.trim()}
             >
-              <ThemedText style={styles.modalButtonText}>Practice Problem</ThemedText>
+              <ThemedText style={styles.buttonText}>Submit Answer</ThemedText>
             </TouchableOpacity>
 
-            {extracting && (
-              <ThemedView style={styles.centerContent}>
-                <ActivityIndicator size="small" />
-                <ThemedText style={styles.loadingText}>Extracting equation...</ThemedText>
-              </ThemedView>
+            <TouchableOpacity
+              style={[styles.newQuestionButton, styles.secondaryButton]}
+              onPress={handleNewQuestion}
+            >
+              <ThemedText style={styles.secondaryButtonText}>New Question</ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* Empty State - with input option */}
+      {!problem && !loading && !error && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.emptyStateSection}
+        >
+          <ThemedView style={styles.inputContainer}>
+            <ThemedText style={styles.inputLabel}>Enter Your Math Problem:</ThemedText>
+            <TextInput
+              style={[
+                styles.textInput,
+                inputError ? styles.textInputError : null,
+              ]}
+              placeholder="e.g., A car travels 120 km in 2 hours. What is its speed?"
+              placeholderTextColor="#999"
+              value={userInput}
+              onChangeText={handleInputChange}
+              multiline
+              numberOfLines={4}
+              maxLength={2000}
+              editable={!loading}
+            />
+            {inputError && (
+              <ThemedText style={styles.inputErrorText}>{inputError}</ThemedText>
             )}
-
-            {equationData && equationData.equation && (
-              <>
-                <ThemedView style={styles.equationContainer}>
-                  <ThemedText type="subtitle" style={styles.equationLabel}>
-                    Extracted Equation:
-                  </ThemedText>
-
-                  <ThemedView style={styles.equationBox}>
-                    <ThemedText style={styles.equationTitle}>Template:</ThemedText>
-                    <LaTeXRenderer equation={equationData.equation} style={styles.latexRenderer} />
-                  </ThemedView>
-
-                  {equationData.variables && equationData.variables.length > 0 && (
-                    <ThemedView style={styles.variablesBox}>
-                      <ThemedText style={styles.equationTitle}>Variables:</ThemedText>
-                      <View style={styles.variablesList}>
-                        {equationData.variables.map((variable, index) => (
-                          <View key={index} style={styles.variableItem}>
-                            <ThemedText style={styles.variableText}>{variable}</ThemedText>
-                          </View>
-                        ))}
-                      </View>
-                    </ThemedView>
-                  )}
-
-                  {equationData.substitutedEquation && (
-                    <ThemedView style={styles.equationBox}>
-                      <ThemedText style={styles.equationTitle}>With Values:</ThemedText>
-                      <LaTeXRenderer equation={equationData.substitutedEquation} style={styles.latexRenderer} />
-                    </ThemedView>
-                  )}
-                </ThemedView>
-
-                <ThemedView style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                    onPress={saveEquationAsJSON}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <>
-                        <ActivityIndicator size="small" color="#FFFFFF" style={styles.saveLoader} />
-                        <ThemedText style={styles.buttonText}>Saving...</ThemedText>
-                      </>
-                    ) : (
-                      <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
-                    )}
-                  </TouchableOpacity>
-                </ThemedView>
-              </>
-            )}
-          </>
-        ) : (
-          <ThemedView style={styles.centerContent}>
-            <ThemedText style={styles.emptyText}>
-              Enter a custom problem above or click "Random Problem" to get started!
+            <ThemedText style={styles.characterCount}>
+              {userInput.length}/2000 characters
             </ThemedText>
           </ThemedView>
-        )}
-      </ThemedView>
 
-      {/* Math Problem Modal */}
-      <MathProblemModal
-        visible={showProblemModal}
-        problem={problem}
-        onClose={() => setShowProblemModal(false)}
-        onSubmit={(answer) => {
-          // Placeholder for future functionality
-          console.log('Answer submitted:', answer);
-          setShowProblemModal(false);
-        }}
-      />
+          <ThemedView style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.buttonDisabled]}
+              onPress={handleSubmitCustomProblem}
+              disabled={loading || !userInput.trim()}
+            >
+              <ThemedText style={styles.buttonText}>
+                Submit Problem
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.generateButton, loading && styles.buttonDisabled]}
+              onPress={fetchMathProblem}
+              disabled={loading}
+            >
+              <ThemedText style={styles.buttonText}>
+                Random Problem
+              </ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
+        </KeyboardAvoidingView>
+      )}
     </ParallaxScrollView>
   );
 }
@@ -526,9 +625,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  inputSection: {
+  emptyStateSection: {
+    marginTop: 16,
     marginBottom: 24,
   },
   inputContainer: {
@@ -590,60 +690,115 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  problemContainer: {
-    marginTop: 16,
+  practiceSection: {
+    marginTop: 24,
     marginBottom: 24,
-    gap: 16,
+    gap: 24,
   },
-  buttonContainer: {
+  questionSection: {
+    gap: 12,
+  },
+  questionLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  questionBox: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 122, 255, 0.3)',
+    minHeight: 100,
+  },
+  questionText: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '500',
+  },
+  answerSection: {
+    gap: 12,
+  },
+  answerLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  answerInput: {
+    backgroundColor: 'rgba(128, 128, 128, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(128, 128, 128, 0.3)',
+    fontSize: 18,
+    minHeight: 60,
+  },
+  feedbackContainer: {
+    padding: 16,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    minHeight: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feedbackText: {
+    color: '#2E7D32',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  actionButtonsContainer: {
+    gap: 12,
     marginTop: 8,
+  },
+  submitAnswerButton: {
+    backgroundColor: '#34C759',
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  modalButton: {
-    backgroundColor: '#007AFF',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 16,
+  newQuestionButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  modalButtonText: {
-    color: '#FFFFFF',
+  secondaryButton: {
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    borderWidth: 2,
+    borderColor: 'rgba(128, 128, 128, 0.3)',
+  },
+  secondaryButtonText: {
+    color: '#666',
     fontSize: 16,
     fontWeight: '600',
   },
-  saveButton: {
-    backgroundColor: '#34C759',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-    minWidth: 150,
+  centerContent: {
     alignItems: 'center',
-    marginTop: 8,
-    flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
+    padding: 32,
+    gap: 16,
   },
-  saveButtonDisabled: {
-    opacity: 0.6,
+  loadingText: {
+    fontSize: 14,
+    opacity: 0.7,
   },
-  saveLoader: {
-    marginRight: 0,
+  errorText: {
+    fontSize: 14,
+    color: '#FF3B30',
   },
-  problemBox: {
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(128, 128, 128, 0.2)',
-  },
-  problemText: {
-    fontSize: 16,
-    lineHeight: 24,
+  emptyText: {
+    fontSize: 14,
+    opacity: 0.7,
   },
   equationContainer: {
     gap: 16,
+    marginTop: 8,
   },
   equationLabel: {
+    fontSize: 16,
+    fontWeight: '700',
     marginBottom: 8,
   },
   equationBox: {
@@ -660,8 +815,8 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   latexRenderer: {
-    minHeight: 60,
-    marginTop: 8,
+    minHeight: 40,
+    marginTop: 4,
   },
   variablesBox: {
     backgroundColor: 'rgba(255, 149, 0, 0.1)',
@@ -680,36 +835,26 @@ const styles = StyleSheet.create({
   variableText: {
     fontSize: 16,
   },
-  centerContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#FF3B30',
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    opacity: 0.7,
-    textAlign: 'center',
-  },
-  retryButton: {
+  saveButtonContainer: {
     marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    alignItems: 'center',
   },
-  retryButtonText: {
-    color: '#FF3B30',
-    fontSize: 14,
-    fontWeight: '600',
+  saveButton: {
+    backgroundColor: '#34C759',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 150,
+    alignItems: 'center',
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveLoader: {
+    marginRight: 0,
   },
 });
