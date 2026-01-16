@@ -1,38 +1,87 @@
 import { useState } from "react";
-import {
-  FlatList,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
 
-export default function AssignmentManager() {
-  type Problem = {
-    id: number;
-    question: string;
-    type: "text" | "truefalse" | "multiplechoice";
-    answer: string;
-    options?: string[];
-    difficulty: string;
-  };
+// Simulated components - replace with your actual implementations
+const ThemedText = ({ children, type, style }: any) => (
+  <span
+    style={{
+      fontSize: type === "title" ? 32 : type === "subtitle" ? 20 : 16,
+      fontWeight: type === "title" || type === "subtitle" ? "bold" : "normal",
+      color: "#1f2937",
+      ...style,
+    }}
+  >
+    {children}
+  </span>
+);
 
-  type Assignment = {
-    id: number;
-    name: string;
-    problems: Problem[];
-    createdAt: string;
-  };
+const ThemedView = ({ children, style }: any) => (
+  <div style={{ ...style }}>{children}</div>
+);
 
-  type StudentSubmission = {
-    assignmentId: number;
-    answers: { [problemId: number]: string };
-    submittedAt: string;
-    score?: number;
-  };
+const LaTeXRenderer = ({ equation, style }: any) => (
+  <div style={{ padding: 16, fontFamily: "monospace", fontSize: 18, ...style }}>
+    {equation}
+  </div>
+);
 
+const ParallaxScrollView = ({ children, headerBackgroundColor }: any) => (
+  <div
+    style={{
+      minHeight: "100vh",
+      backgroundColor: "#f0f9ff",
+      padding: 24,
+    }}
+  >
+    {children}
+  </div>
+);
+
+// Types
+type Problem = {
+  id: number;
+  question: string;
+  type: "text" | "truefalse" | "multiplechoice";
+  answer: string;
+  options?: string[];
+  difficulty: string;
+};
+
+type Assignment = {
+  id: number;
+  name: string;
+  problems: Problem[];
+  createdAt: string;
+};
+
+type StudentSubmission = {
+  assignmentId: number;
+  answers: { [problemId: number]: string };
+  submittedAt: string;
+  score?: number;
+};
+
+type EquationData = {
+  equation: string;
+  substitutedEquation: string;
+  variables: string[];
+};
+
+export default function MathLearningPlatform() {
+  const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
+    "practice",
+  );
+
+  // Practice Tab State
+  const [problem, setProblem] = useState<string | null>(null);
+  const [equationData, setEquationData] = useState<EquationData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState("");
+  const [inputError, setInputError] = useState<string | null>(null);
+
+  // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
@@ -49,12 +98,99 @@ export default function AssignmentManager() {
   >("text");
   const [problemOptions, setProblemOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
-
   const [studentAnswers, setStudentAnswers] = useState<{
     [key: number]: string;
   }>({});
   const [showSubmission, setShowSubmission] = useState(false);
 
+  // Practice Tab Functions
+  const validateInput = (text: string): boolean => {
+    setInputError(null);
+    if (!text || text.trim().length === 0) {
+      setInputError("Please enter a math problem");
+      return false;
+    }
+    if (text.trim().length < 10) {
+      setInputError("Problem seems too short. Please provide more details");
+      return false;
+    }
+    if (text.length > 2000) {
+      setInputError(
+        "Problem is too long. Please keep it under 2000 characters",
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmitCustomProblem = async () => {
+    if (!validateInput(userInput)) return;
+
+    setLoading(true);
+    setError(null);
+    setInputError(null);
+    setEquationData(null);
+
+    const trimmedProblem = userInput.trim();
+    setProblem(trimmedProblem);
+
+    // Simulate equation extraction
+    setTimeout(() => {
+      setEquationData({
+        equation: "v = \\frac{d}{t}",
+        substitutedEquation: "v = \\frac{120}{2} = 60",
+        variables: ["v (velocity)", "d (distance)", "t (time)"],
+      });
+      setLoading(false);
+    }, 1000);
+
+    setUserInput("");
+  };
+
+  const fetchMathProblem = () => {
+    setLoading(true);
+    setError(null);
+    setEquationData(null);
+
+    setTimeout(() => {
+      setProblem(
+        "A car travels 120 km in 2 hours. What is its average speed in km/h?",
+      );
+      setEquationData({
+        equation: "v = \\frac{d}{t}",
+        substitutedEquation: "v = \\frac{120}{2} = 60",
+        variables: ["v (velocity)", "d (distance)", "t (time)"],
+      });
+      setLoading(false);
+    }, 1000);
+  };
+
+  const saveEquationAsJSON = () => {
+    if (!equationData) {
+      alert("Error: No equation data to save");
+      return;
+    }
+
+    const jsonData = {
+      equation: equationData.equation,
+      substitutedEquation: equationData.substitutedEquation,
+      variables: equationData.variables,
+    };
+
+    const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `equation_${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    alert("✓ File saved successfully!");
+  };
+
+  // Assignment Tab Functions
   const createAssignment = () => {
     if (assignmentName.trim()) {
       const newAssignment: Assignment = {
@@ -99,7 +235,7 @@ export default function AssignmentManager() {
       });
       setAssignments(updatedAssignments);
       setSelectedAssignment(
-        updatedAssignments.find((a) => a.id === selectedAssignment.id) || null
+        updatedAssignments.find((a) => a.id === selectedAssignment.id) || null,
       );
       resetProblemForm();
       setShowAddProblem(false);
@@ -121,10 +257,6 @@ export default function AssignmentManager() {
     }
   };
 
-  const removeOption = (index: number) => {
-    setProblemOptions(problemOptions.filter((_, i) => i !== index));
-  };
-
   const deleteProblem = (problemId: number) => {
     if (selectedAssignment) {
       const updatedAssignments = assignments.map((a) => {
@@ -138,7 +270,7 @@ export default function AssignmentManager() {
       });
       setAssignments(updatedAssignments);
       setSelectedAssignment(
-        updatedAssignments.find((a) => a.id === selectedAssignment.id) || null
+        updatedAssignments.find((a) => a.id === selectedAssignment.id) || null,
       );
     }
   };
@@ -150,9 +282,7 @@ export default function AssignmentManager() {
     selectedAssignment.problems.forEach((problem) => {
       const studentAnswer = studentAnswers[problem.id]?.trim().toLowerCase();
       const correctAnswer = problem.answer.trim().toLowerCase();
-      if (studentAnswer === correctAnswer) {
-        score++;
-      }
+      if (studentAnswer === correctAnswer) score++;
     });
 
     const submission: StudentSubmission = {
@@ -166,689 +296,550 @@ export default function AssignmentManager() {
     setShowSubmission(true);
   };
 
-  const hasSubmitted = (assignmentId: number) => {
-    return submissions.some((s) => s.assignmentId === assignmentId);
-  };
-
   const getSubmission = (assignmentId: number) => {
     return submissions.find((s) => s.assignmentId === assignmentId);
   };
 
-  const closeSubmissionView = () => {
-    setShowSubmission(false);
-    setSelectedAssignment(null);
-    setStudentAnswers({});
-  };
+  const renderPracticeTab = () => (
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <ThemedView style={styles.titleContainer}>
+        <ThemedText type="title">Equation Practice</ThemedText>
+      </ThemedView>
 
-  const getDifficultyBadgeStyle = (diff: string) => {
-    if (diff === "easy") return [styles.badge, styles.badgeEasy];
-    if (diff === "medium") return [styles.badge, styles.badgeMedium];
-    return [styles.badge, styles.badgeHard];
-  };
+      <ThemedView style={styles.inputContainer}>
+        <ThemedText style={styles.inputLabel}>
+          Enter Your Math Problem:
+        </ThemedText>
+        <textarea
+          style={styles.textInput}
+          placeholder="e.g., A car travels 120 km in 2 hours. What is its speed?"
+          value={userInput}
+          onChange={(e) => setUserInput(e.target.value)}
+          rows={4}
+          maxLength={2000}
+        />
+        {inputError && (
+          <ThemedText style={styles.inputErrorText}>{inputError}</ThemedText>
+        )}
+        <ThemedText style={styles.characterCount}>
+          {userInput.length}/2000 characters
+        </ThemedText>
+      </ThemedView>
 
-  const getDifficultyTextStyle = (diff: string) => {
-    if (diff === "easy") return styles.badgeTextEasy;
-    if (diff === "medium") return styles.badgeTextMedium;
-    return styles.badgeTextHard;
-  };
+      <ThemedView style={styles.buttonRow}>
+        <button
+          style={{
+            ...styles.submitButton,
+            ...(loading ? styles.buttonDisabled : {}),
+          }}
+          onClick={handleSubmitCustomProblem}
+          disabled={loading}
+        >
+          <ThemedText style={styles.buttonText}>
+            {loading ? "Processing..." : "Submit Problem"}
+          </ThemedText>
+        </button>
+        <button
+          style={{
+            ...styles.generateButton,
+            ...(loading ? styles.buttonDisabled : {}),
+          }}
+          onClick={fetchMathProblem}
+          disabled={loading}
+        >
+          <ThemedText style={styles.buttonText}>Random Problem</ThemedText>
+        </button>
+      </ThemedView>
 
-  const getTypeLabel = (type: string) => {
-    if (type === "text") return "Text";
-    if (type === "truefalse") return "True/False";
-    return "Multiple Choice";
-  };
+      {loading && !problem ? (
+        <div style={styles.centerContent}>
+          <div style={styles.spinner} />
+          <ThemedText style={styles.loadingText}>
+            Generating problem...
+          </ThemedText>
+        </div>
+      ) : problem ? (
+        <>
+          <ThemedView style={styles.problemBox}>
+            <ThemedText style={styles.problemText}>{problem}</ThemedText>
+          </ThemedView>
 
-  if (role === "student" && selectedAssignment) {
-    const submission = getSubmission(selectedAssignment.id);
-    const isCompleted = submission !== undefined;
+          {equationData && (
+            <>
+              <ThemedView style={styles.equationContainer}>
+                <ThemedText type="subtitle" style={styles.equationLabel}>
+                  Extracted Equation:
+                </ThemedText>
 
-    if (showSubmission && submission) {
-      return (
-        <ScrollView style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.heading}>Assignment Submitted!</Text>
-            <View style={styles.scoreCard}>
-              <Text style={styles.scoreText}>Your Score</Text>
-              <Text style={styles.scoreNumber}>
-                {submission.score} / {selectedAssignment.problems.length}
-              </Text>
-              <Text style={styles.scorePercentage}>
-                {Math.round(
-                  (submission.score! / selectedAssignment.problems.length) * 100
+                <ThemedView style={styles.equationBox}>
+                  <ThemedText style={styles.equationTitle}>
+                    Template:
+                  </ThemedText>
+                  <LaTeXRenderer equation={equationData.equation} />
+                </ThemedView>
+
+                {equationData.variables &&
+                  equationData.variables.length > 0 && (
+                    <ThemedView style={styles.variablesBox}>
+                      <ThemedText style={styles.equationTitle}>
+                        Variables:
+                      </ThemedText>
+                      {equationData.variables.map((variable, index) => (
+                        <div key={index} style={styles.variableItem}>
+                          <ThemedText>{variable}</ThemedText>
+                        </div>
+                      ))}
+                    </ThemedView>
+                  )}
+
+                {equationData.substitutedEquation && (
+                  <ThemedView style={styles.equationBox}>
+                    <ThemedText style={styles.equationTitle}>
+                      With Values:
+                    </ThemedText>
+                    <LaTeXRenderer
+                      equation={equationData.substitutedEquation}
+                    />
+                  </ThemedView>
                 )}
-                %
-              </Text>
-            </View>
+              </ThemedView>
 
-            <Text style={styles.listHeading}>Review Your Answers</Text>
-            <FlatList
-              data={selectedAssignment.problems}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => {
-                const studentAnswer = submission.answers[item.id];
-                const isCorrect =
-                  studentAnswer?.trim().toLowerCase() ===
-                  item.answer.trim().toLowerCase();
+              <button style={styles.saveButton} onClick={saveEquationAsJSON}>
+                <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
+              </button>
+            </>
+          )}
+        </>
+      ) : (
+        <ThemedView style={styles.centerContent}>
+          <ThemedText style={styles.emptyText}>
+            Enter a custom problem above or click "Random Problem" to get
+            started!
+          </ThemedText>
+        </ThemedView>
+      )}
+    </div>
+  );
 
-                return (
-                  <View style={styles.problemCard}>
-                    <View style={styles.problemHeader}>
-                      <View style={getDifficultyBadgeStyle(item.difficulty)}>
-                        <Text style={getDifficultyTextStyle(item.difficulty)}>
-                          {item.difficulty.charAt(0).toUpperCase() +
-                            item.difficulty.slice(1)}
-                        </Text>
-                      </View>
-                      <View
-                        style={
-                          isCorrect
-                            ? styles.correctBadge
-                            : styles.incorrectBadge
-                        }
-                      >
-                        <Text
-                          style={
-                            isCorrect
-                              ? styles.correctText
-                              : styles.incorrectText
-                          }
-                        >
-                          {isCorrect ? "✓ Correct" : "✗ Incorrect"}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.problemQuestion}>{item.question}</Text>
-                    <Text style={styles.problemAnswer}>
-                      <Text style={styles.answerLabel}>Your Answer: </Text>
-                      {studentAnswer || "No answer"}
-                    </Text>
-                    <Text style={styles.problemAnswer}>
-                      <Text style={styles.answerLabel}>Correct Answer: </Text>
-                      {item.answer}
-                    </Text>
-                  </View>
-                );
-              }}
-              scrollEnabled={false}
-            />
-
-            <TouchableOpacity
-              onPress={closeSubmissionView}
-              style={styles.addButton}
-            >
-              <Text style={styles.addButtonText}>Back to Assignments</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      );
+  const renderAssignmentsTab = () => {
+    if (selectedAssignment) {
+      return renderAssignmentDetail();
     }
 
     return (
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <TouchableOpacity onPress={() => setSelectedAssignment(null)}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.heading}>{selectedAssignment.name}</Text>
-          <Text style={styles.subheading}>
-            {selectedAssignment.problems.length} problems
-          </Text>
-
-          {isCompleted ? (
-            <View style={styles.completedBanner}>
-              <Text style={styles.completedText}>✓ Completed</Text>
-              <TouchableOpacity onPress={() => setShowSubmission(true)}>
-                <Text style={styles.viewResultsButton}>View Results</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.listHeading}>Complete the Problems</Text>
-              <FlatList
-                data={selectedAssignment.problems}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item, index }) => (
-                  <View style={styles.problemCard}>
-                    <View style={styles.problemHeader}>
-                      <Text style={styles.problemNumber}>
-                        Problem {index + 1}
-                      </Text>
-                      <View style={getDifficultyBadgeStyle(item.difficulty)}>
-                        <Text style={getDifficultyTextStyle(item.difficulty)}>
-                          {item.difficulty.charAt(0).toUpperCase() +
-                            item.difficulty.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.problemQuestion}>{item.question}</Text>
-                    <Text style={styles.problemMeta}>
-                      <Text style={styles.answerLabel}>Type: </Text>
-                      {getTypeLabel(item.type)}
-                    </Text>
-
-                    {item.type === "text" && (
-                      <TextInput
-                        value={studentAnswers[item.id] || ""}
-                        onChangeText={(text) =>
-                          setStudentAnswers({
-                            ...studentAnswers,
-                            [item.id]: text,
-                          })
-                        }
-                        placeholder="Type your answer..."
-                        style={[styles.textInput, styles.studentInput]}
-                        multiline
-                        numberOfLines={3}
-                        placeholderTextColor="#9ca3af"
-                      />
-                    )}
-
-                    {item.type === "truefalse" && (
-                      <View style={styles.difficultyButtons}>
-                        {["True", "False"].map((opt) => (
-                          <TouchableOpacity
-                            key={opt}
-                            onPress={() =>
-                              setStudentAnswers({
-                                ...studentAnswers,
-                                [item.id]: opt,
-                              })
-                            }
-                            style={[
-                              styles.diffButton,
-                              studentAnswers[item.id] === opt &&
-                              styles.diffButtonActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.diffButtonText,
-                                studentAnswers[item.id] === opt &&
-                                styles.diffButtonTextActive,
-                              ]}
-                            >
-                              {opt}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-
-                    {item.type === "multiplechoice" && item.options && (
-                      <View style={styles.optionsList}>
-                        {item.options.map((option, optIndex) => (
-                          <TouchableOpacity
-                            key={optIndex}
-                            onPress={() =>
-                              setStudentAnswers({
-                                ...studentAnswers,
-                                [item.id]: option,
-                              })
-                            }
-                            style={[
-                              styles.multipleChoiceOption,
-                              studentAnswers[item.id] === option &&
-                              styles.multipleChoiceOptionSelected,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.multipleChoiceText,
-                                studentAnswers[item.id] === option &&
-                                styles.multipleChoiceTextSelected,
-                              ]}
-                            >
-                              {option}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-                scrollEnabled={false}
-              />
-
-              <TouchableOpacity
-                onPress={submitAssignment}
-                style={[
-                  styles.addButton,
-                  Object.keys(studentAnswers).length !==
-                  selectedAssignment.problems.length && styles.disabledButton,
-                ]}
-                disabled={
-                  Object.keys(studentAnswers).length !==
-                  selectedAssignment.problems.length
-                }
-              >
-                <Text style={styles.addButtonText}>Submit Assignment</Text>
-              </TouchableOpacity>
-              {Object.keys(studentAnswers).length !==
-                selectedAssignment.problems.length && (
-                  <Text style={styles.warningText}>
-                    Please answer all problems before submitting
-                  </Text>
-                )}
-            </>
-          )}
-        </View>
-      </ScrollView>
-    );
-  }
-
-  if (role === "teacher" && selectedAssignment) {
-    return (
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <TouchableOpacity onPress={() => setSelectedAssignment(null)}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.heading}>{selectedAssignment.name}</Text>
-          <Text style={styles.subheading}>
-            {selectedAssignment.problems.length} problems
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => {
-              resetProblemForm();
-              setShowAddProblem(true);
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={styles.roleToggle}>
+          <button
+            onClick={() => setRole("teacher")}
+            style={{
+              ...styles.roleButton,
+              ...(role === "teacher" ? styles.roleButtonActive : {}),
             }}
-            style={styles.addButton}
           >
-            <Text style={styles.addButtonText}>+ Add Problem</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.listHeading}>Problems</Text>
-          {selectedAssignment.problems.length === 0 ? (
-            <Text style={styles.emptyState}>
-              No problems yet. Add one above!
-            </Text>
-          ) : (
-            <FlatList
-              data={selectedAssignment.problems}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => (
-                <View style={styles.problemCard}>
-                  <View style={styles.problemHeader}>
-                    <View style={getDifficultyBadgeStyle(item.difficulty)}>
-                      <Text style={getDifficultyTextStyle(item.difficulty)}>
-                        {item.difficulty.charAt(0).toUpperCase() +
-                          item.difficulty.slice(1)}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => deleteProblem(item.id)}>
-                      <Text style={styles.deleteButton}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.problemQuestion}>{item.question}</Text>
-                  <Text style={styles.problemMeta}>
-                    <Text style={styles.answerLabel}>Type: </Text>
-                    {getTypeLabel(item.type)}
-                  </Text>
-                  <Text style={styles.problemAnswer}>
-                    <Text style={styles.answerLabel}>Answer: </Text>
-                    {item.answer}
-                  </Text>
-                  {item.options && (
-                    <Text style={styles.problemOptions}>
-                      <Text style={styles.answerLabel}>Options: </Text>
-                      {item.options.join(", ")}
-                    </Text>
-                  )}
-                </View>
-              )}
-              scrollEnabled={false}
-            />
-          )}
-        </View>
-
-        <Modal visible={showAddProblem} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ justifyContent: "flex-end" }}
-            >
-              <View style={styles.modalContent}>
-                <Text style={styles.modalHeading}>Add Problem</Text>
-
-                <Text style={styles.label}>Problem Question</Text>
-                <TextInput
-                  value={question}
-                  onChangeText={setQuestion}
-                  placeholder="Enter the problem question..."
-                  style={styles.textInput}
-                  multiline
-                  numberOfLines={4}
-                  placeholderTextColor="#9ca3af"
-                />
-
-                <Text style={styles.label}>Problem Type</Text>
-                <View style={styles.difficultyButtons}>
-                  {(["text", "truefalse", "multiplechoice"] as const).map(
-                    (type) => (
-                      <TouchableOpacity
-                        key={type}
-                        onPress={() => {
-                          setProblemType(type);
-                          setProblemOptions([]);
-                        }}
-                        style={[
-                          styles.diffButton,
-                          problemType === type && styles.diffButtonActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.diffButtonText,
-                            problemType === type && styles.diffButtonTextActive,
-                          ]}
-                        >
-                          {getTypeLabel(type)}
-                        </Text>
-                      </TouchableOpacity>
-                    )
-                  )}
-                </View>
-
-                {problemType === "multiplechoice" && (
-                  <View>
-                    <Text style={styles.label}>Multiple Choice Options</Text>
-                    <View style={styles.optionInputContainer}>
-                      <TextInput
-                        value={newOption}
-                        onChangeText={setNewOption}
-                        placeholder="Enter an option..."
-                        style={[styles.textInput, styles.optionInput]}
-                        placeholderTextColor="#9ca3af"
-                      />
-                      <TouchableOpacity
-                        onPress={addOption}
-                        style={styles.addOptionButton}
-                      >
-                        <Text style={styles.addOptionText}>Add</Text>
-                      </TouchableOpacity>
-                    </View>
-                    {problemOptions.length > 0 && (
-                      <View style={styles.optionsList}>
-                        {problemOptions.map((option, index) => (
-                          <View key={index} style={styles.optionItem}>
-                            <Text style={styles.optionText}>{option}</Text>
-                            <TouchableOpacity
-                              onPress={() => removeOption(index)}
-                            >
-                              <Text style={styles.removeOptionText}>×</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <Text style={styles.label}>
-                  {problemType === "truefalse" ? "Correct Answer" : "Answer"}
-                </Text>
-                {problemType === "truefalse" ? (
-                  <View style={styles.difficultyButtons}>
-                    {(["True", "False"] as const).map((opt) => (
-                      <TouchableOpacity
-                        key={opt}
-                        onPress={() => setAnswer(opt)}
-                        style={[
-                          styles.diffButton,
-                          answer === opt && styles.diffButtonActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.diffButtonText,
-                            answer === opt && styles.diffButtonTextActive,
-                          ]}
-                        >
-                          {opt}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <TextInput
-                    value={answer}
-                    onChangeText={setAnswer}
-                    placeholder="Enter the answer..."
-                    style={styles.textInput}
-                    multiline
-                    numberOfLines={2}
-                    placeholderTextColor="#9ca3af"
-                  />
-                )}
-
-                <Text style={styles.label}>Difficulty</Text>
-                <View style={styles.difficultyButtons}>
-                  {(["easy", "medium", "hard"] as const).map((level) => (
-                    <TouchableOpacity
-                      key={level}
-                      onPress={() => setDifficulty(level)}
-                      style={[
-                        styles.diffButton,
-                        difficulty === level && styles.diffButtonActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.diffButtonText,
-                          difficulty === level && styles.diffButtonTextActive,
-                        ]}
-                      >
-                        {level.charAt(0).toUpperCase() + level.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    onPress={() => setShowAddProblem(false)}
-                    style={[styles.modalButton, styles.cancelButton]}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={addProblemToAssignment}
-                    style={[styles.modalButton, styles.confirmButton]}
-                  >
-                    <Text style={styles.confirmButtonText}>Add Problem</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </Modal>
-      </ScrollView>
-    );
-  }
-
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.roleToggle}>
-          <TouchableOpacity
-            onPress={() => {
-              setRole("teacher");
-              setSelectedAssignment(null);
-              setStudentAnswers({});
-            }}
-            style={[
-              styles.roleButton,
-              role === "teacher" && styles.roleButtonActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.roleButtonText,
-                role === "teacher" && styles.roleButtonTextActive,
-              ]}
+            <span
+              style={{
+                ...styles.roleButtonText,
+                ...(role === "teacher" ? styles.roleButtonTextActive : {}),
+              }}
             >
               Teacher
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setRole("student");
-              setSelectedAssignment(null);
-              setStudentAnswers({});
+            </span>
+          </button>
+          <button
+            onClick={() => setRole("student")}
+            style={{
+              ...styles.roleButton,
+              ...(role === "student" ? styles.roleButtonActive : {}),
             }}
-            style={[
-              styles.roleButton,
-              role === "student" && styles.roleButtonActive,
-            ]}
           >
-            <Text
-              style={[
-                styles.roleButtonText,
-                role === "student" && styles.roleButtonTextActive,
-              ]}
+            <span
+              style={{
+                ...styles.roleButtonText,
+                ...(role === "student" ? styles.roleButtonTextActive : {}),
+              }}
             >
               Student
-            </Text>
-          </TouchableOpacity>
-        </View>
+            </span>
+          </button>
+        </div>
 
-        <Text style={styles.heading}>
-          {role === "teacher" ? "Manage Assignments" : "My Assignments"}
-        </Text>
-        <Text style={styles.subheading}>
+        <ThemedText type="title">
+          {role === "teacher" ? "Manage Assignments\n" : "My Assignments"}
+        </ThemedText>
+        <ThemedText style={styles.subheading}>
           {role === "teacher"
-            ? "Create and manage assignments"
+            ? "\nCreate and manage assignments"
             : "Complete your assignments"}
-        </Text>
+        </ThemedText>
 
         {role === "teacher" && (
-          <TouchableOpacity
-            onPress={() => setShowCreateAssignment(true)}
+          <button
             style={styles.addButton}
+            onClick={() => setShowCreateAssignment(true)}
           >
-            <Text style={styles.addButtonText}>+ Create Assignment</Text>
-          </TouchableOpacity>
+            <ThemedText style={styles.buttonText}>
+              + Create Assignment
+            </ThemedText>
+          </button>
         )}
 
-        <Text style={styles.listHeading}>
+        <ThemedText style={styles.listHeading}>
           {role === "teacher" ? "Your Assignments" : "Available Assignments"} (
           {assignments.length})
-        </Text>
+        </ThemedText>
+
         {assignments.length === 0 ? (
-          <Text style={styles.emptyState}>
+          <ThemedText style={styles.emptyState}>
             {role === "teacher"
               ? "No assignments yet. Create one above!"
               : "No assignments available yet."}
-          </Text>
+          </ThemedText>
         ) : (
-          <FlatList
-            data={assignments}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => {
-              const submission =
-                role === "student" ? getSubmission(item.id) : null;
-              const isCompleted = submission !== undefined;
+          assignments.map((item) => {
+            const submission =
+              role === "student" ? getSubmission(item.id) : null;
+            const isCompleted = submission !== undefined;
 
-              return (
-                <TouchableOpacity
-                  onPress={() => {
-                    if (role === "student" && isCompleted) {
-                      setSelectedAssignment(item);
-                      setShowSubmission(true);
-                    } else {
-                      setSelectedAssignment(item);
-                    }
-                  }}
-                  style={styles.assignmentCard}
-                >
-                  <View style={styles.assignmentHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.assignmentName}>{item.name}</Text>
-                      <Text style={styles.assignmentMeta}>
-                        {item.problems.length} problem
-                        {item.problems.length !== 1 ? "s" : ""} •{" "}
-                        {item.createdAt}
-                      </Text>
-                      {role === "student" && isCompleted && submission && (
-                        <Text style={styles.completedLabel}>
-                          ✓ Completed - Score: {submission.score}/
-                          {item.problems.length}
-                        </Text>
-                      )}
-                    </View>
-                    {role === "teacher" && (
-                      <TouchableOpacity
-                        onPress={() => deleteAssignment(item.id)}
-                        style={styles.assignmentDelete}
-                      >
-                        <Text style={styles.deleteButton}>Delete</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
-            scrollEnabled={false}
-          />
+            return (
+              <div
+                key={item.id}
+                style={styles.assignmentCard}
+                onClick={() => setSelectedAssignment(item)}
+              >
+                <div style={{ flex: 1 }}>
+                  <ThemedText style={styles.assignmentName}>
+                    {item.name}
+                  </ThemedText>
+                  <ThemedText style={styles.assignmentMeta}>
+                    {item.problems.length} problem
+                    {item.problems.length !== 1 ? "s" : ""} • {item.createdAt}
+                  </ThemedText>
+                  {role === "student" && isCompleted && submission && (
+                    <ThemedText style={styles.completedLabel}>
+                      ✓ Completed - Score: {submission.score}/
+                      {item.problems.length}
+                    </ThemedText>
+                  )}
+                </div>
+                {role === "teacher" && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteAssignment(item.id);
+                    }}
+                    style={styles.deleteButton}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            );
+          })
         )}
-      </View>
 
-      <Modal visible={showCreateAssignment} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalHeading}>Create Assignment</Text>
+        {showCreateAssignment && (
+          <div
+            style={styles.modalOverlay}
+            onClick={() => setShowCreateAssignment(false)}
+          >
+            <div
+              style={styles.modalContent}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ThemedText type="subtitle">Create Assignment</ThemedText>
+              <ThemedText style={styles.label}>Assignment Name</ThemedText>
+              <input
+                value={assignmentName}
+                onChange={(e) => setAssignmentName(e.target.value)}
+                placeholder="e.g., Algebra Quiz 1"
+                style={styles.textInput}
+              />
+              <div style={styles.modalButtons}>
+                <button
+                  onClick={() => setShowCreateAssignment(false)}
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </button>
+                <button onClick={createAssignment} style={styles.confirmButton}>
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
-            <Text style={styles.label}>Assignment Name</Text>
-            <TextInput
-              value={assignmentName}
-              onChangeText={setAssignmentName}
-              placeholder="e.g., Algebra Quiz 1"
-              style={styles.textInput}
-              placeholderTextColor="#9ca3af"
-            />
+  const renderAssignmentDetail = () => {
+    // Simplified version - full implementation would include problem management UI
+    return (
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <button
+          onClick={() => setSelectedAssignment(null)}
+          style={styles.backButton}
+        >
+          ← Back
+        </button>
+        <ThemedText type="title">{selectedAssignment!.name}</ThemedText>
+        <ThemedText style={styles.subheading}>
+          {selectedAssignment!.problems.length} problems
+        </ThemedText>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setShowCreateAssignment(false)}
-                style={[styles.modalButton, styles.cancelButton]}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={createAssignment}
-                style={[styles.modalButton, styles.confirmButton]}
-              >
-                <Text style={styles.confirmButtonText}>Create</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
+        {role === "teacher" && (
+          <button
+            style={styles.addButton}
+            onClick={() => setShowAddProblem(true)}
+          >
+            <ThemedText style={styles.buttonText}>+ Add Problem</ThemedText>
+          </button>
+        )}
+
+        {selectedAssignment!.problems.length === 0 ? (
+          <ThemedText style={styles.emptyState}>
+            No problems yet. Add one above!
+          </ThemedText>
+        ) : (
+          selectedAssignment!.problems.map((item) => (
+            <div key={item.id} style={styles.problemCard}>
+              <ThemedText style={styles.problemQuestion}>
+                {item.question}
+              </ThemedText>
+              <ThemedText style={styles.problemAnswer}>
+                <strong>Answer:</strong> {item.answer}
+              </ThemedText>
+              {role === "teacher" && (
+                <button
+                  onClick={() => deleteProblem(item.id)}
+                  style={styles.deleteButton}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      style={{ minHeight: "100vh", backgroundColor: "#f0f9ff", padding: 24 }}
+    >
+      <div style={styles.tabContainer}>
+        <button
+          onClick={() => setActiveTab("practice")}
+          style={{
+            ...styles.tab,
+            ...(activeTab === "practice" ? styles.activeTab : {}),
+          }}
+        >
+          <span
+            style={{
+              ...styles.tabText,
+              ...(activeTab === "practice" ? styles.activeTabText : {}),
+            }}
+          >
+            Practice
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("assignments")}
+          style={{
+            ...styles.tab,
+            ...(activeTab === "assignments" ? styles.activeTab : {}),
+          }}
+        >
+          <span
+            style={{
+              ...styles.tabText,
+              ...(activeTab === "assignments" ? styles.activeTabText : {}),
+            }}
+          >
+            Assignments
+          </span>
+        </button>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        {activeTab === "practice"
+          ? renderPracticeTab()
+          : renderAssignmentsTab()}
+      </div>
+    </div>
   );
 }
 
-const styles = {
-  container: { flex: 1, backgroundColor: "#f0f9ff" },
-  content: { padding: 24, paddingBottom: 120, paddingTop: 60 },
-  heading: {
-    fontSize: 32,
-    fontWeight: "bold" as "bold",
-    color: "#1f2937",
+const styles: { [key: string]: React.CSSProperties } = {
+  tabContainer: {
+    display: "flex",
+    gap: 12,
+    borderBottom: "2px solid #e5e7eb",
+    paddingBottom: 8,
+    maxWidth: 900,
+    margin: "0 auto",
+  },
+  tab: {
+    padding: "12px 24px",
+    backgroundColor: "transparent",
+    border: "none",
+    borderRadius: "8px 8px 0 0",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  activeTab: {
+    backgroundColor: "#2563eb",
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  activeTabText: {
+    color: "white",
+  },
+  titleContainer: {
+    marginBottom: 24,
+  },
+  inputContainer: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "600",
     marginBottom: 8,
   },
-  subheading: { fontSize: 16, color: "#4b5563", marginBottom: 24 },
-  backButton: {
+  textInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "rgba(128, 128, 128, 0.3)",
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    color: "#2563eb",
-    fontWeight: "600" as "600",
+    backgroundColor: "rgba(128, 128, 128, 0.05)",
+    fontFamily: "inherit",
+  },
+  inputErrorText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    marginTop: 4,
+  },
+  characterCount: {
+    fontSize: 12,
+    opacity: 0.6,
+    textAlign: "right",
+  },
+  buttonRow: {
+    display: "flex",
+    gap: 12,
+    marginBottom: 24,
+  },
+  submitButton: {
+    flex: 1,
+    backgroundColor: "#34C759",
+    padding: "12px 16px",
+    borderRadius: 8,
+    border: "none",
+    cursor: "pointer",
+  },
+  generateButton: {
+    flex: 1,
+    backgroundColor: "#007AFF",
+    padding: "12px 16px",
+    borderRadius: 8,
+    border: "none",
+    cursor: "pointer",
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+    cursor: "not-allowed",
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  centerContent: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+    gap: 16,
+  },
+  spinner: {
+    width: 40,
+    height: 40,
+    border: "4px solid #e5e7eb",
+    borderTop: "4px solid #2563eb",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+  },
+  loadingText: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  problemBox: {
+    backgroundColor: "rgba(128, 128, 128, 0.1)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    border: "1px solid rgba(128, 128, 128, 0.2)",
+  },
+  problemText: {
+    fontSize: 16,
+    lineHeight: 1.5,
+  },
+  equationContainer: {
+    gap: 16,
     marginBottom: 16,
   },
+  equationLabel: {
+    marginBottom: 8,
+  },
+  equationBox: {
+    backgroundColor: "rgba(0, 122, 255, 0.1)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    border: "1px solid rgba(0, 122, 255, 0.3)",
+  },
+  equationTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    opacity: 0.8,
+  },
+  variablesBox: {
+    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    border: "1px solid rgba(255, 149, 0, 0.3)",
+  },
+  variableItem: {
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  saveButton: {
+    backgroundColor: "#34C759",
+    padding: "12px 32px",
+    borderRadius: 8,
+    border: "none",
+    cursor: "pointer",
+    display: "block",
+    margin: "16px auto",
+  },
+  emptyText: {
+    fontSize: 14,
+    opacity: 0.7,
+    textAlign: "center",
+  },
   roleToggle: {
-    flexDirection: "row" as const,
+    display: "flex",
     gap: 8,
     marginBottom: 24,
     backgroundColor: "#e0f2fe",
@@ -857,43 +848,47 @@ const styles = {
   },
   roleButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    padding: "12px 16px",
     borderRadius: 6,
-    alignItems: "center" as const,
+    border: "none",
+    cursor: "pointer",
+    backgroundColor: "transparent",
   },
   roleButtonActive: {
     backgroundColor: "#2563eb",
   },
   roleButtonText: {
     fontSize: 16,
-    fontWeight: "600" as "600",
+    fontWeight: "600",
     color: "#6b7280",
   },
   roleButtonTextActive: {
     color: "white",
+  },
+  subheading: {
+    fontSize: 16,
+    color: "#4b5563",
+    marginBottom: 24,
   },
   addButton: {
     backgroundColor: "#2563eb",
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
-    alignItems: "center" as const,
+    border: "none",
+    cursor: "pointer",
+    width: "100%",
   },
-  disabledButton: {
-    backgroundColor: "#9ca3af",
-  },
-  addButtonText: { color: "white", fontSize: 16, fontWeight: "600" as const },
   listHeading: {
     fontSize: 20,
-    fontWeight: "bold" as "bold",
+    fontWeight: "bold",
     color: "#1f2937",
     marginBottom: 12,
   },
   emptyState: {
     color: "#9ca3af",
-    textAlign: "center" as "center",
-    paddingVertical: 32,
+    textAlign: "center",
+    padding: 32,
     fontSize: 16,
   },
   assignmentCard: {
@@ -901,268 +896,115 @@ const styles = {
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
-    elevation: 3,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    cursor: "pointer",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  assignmentHeader: {
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    alignItems: "center" as const,
-  },
-  assignmentDelete: { paddingLeft: 16 },
   assignmentName: {
     fontSize: 18,
-    fontWeight: "600" as "600",
+    fontWeight: "600",
     color: "#1f2937",
     marginBottom: 4,
   },
-  assignmentMeta: { fontSize: 13, color: "#6b7280" },
+  assignmentMeta: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
   completedLabel: {
     fontSize: 13,
     color: "#16a34a",
-    fontWeight: "600" as "600",
+    fontWeight: "600",
     marginTop: 4,
   },
-  completedBanner: {
-    backgroundColor: "#dcfce7",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 24,
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    alignItems: "center" as const,
+  deleteButton: {
+    fontSize: 15,
+    color: "#ef4444",
+    fontWeight: "600",
+    backgroundColor: "transparent",
+    border: "none",
+    cursor: "pointer",
+    padding: 8,
   },
-  completedText: {
+  backButton: {
     fontSize: 16,
-    color: "#166534",
-    fontWeight: "600" as "600",
-  },
-  viewResultsButton: {
-    fontSize: 14,
     color: "#2563eb",
-    fontWeight: "600" as "600",
+    fontWeight: "600",
+    marginBottom: 16,
+    backgroundColor: "transparent",
+    border: "none",
+    cursor: "pointer",
   },
   problemCard: {
     backgroundColor: "white",
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
-    elevation: 3,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
   },
-  problemHeader: {
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  problemNumber: {
-    fontSize: 14,
-    fontWeight: "600" as "600",
-    color: "#2563eb",
-  },
-  problemMeta: {
-    fontSize: 13,
-    color: "#6b7280",
-    marginBottom: 4,
-  },
-  problemOptions: {
-    fontSize: 13,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  badge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  badgeEasy: { backgroundColor: "#dcfce7" },
-  badgeMedium: { backgroundColor: "#fef3c7" },
-  badgeHard: { backgroundColor: "#fee2e2" },
-  badgeTextEasy: { color: "#166534", fontSize: 12, fontWeight: "600" as "600" },
-  badgeTextMedium: {
-    color: "#92400e",
-    fontSize: 12,
-    fontWeight: "600" as "600",
-  },
-  badgeTextHard: { color: "#991b1b", fontSize: 12, fontWeight: "600" as "600" },
-  correctBadge: {
-    backgroundColor: "#dcfce7",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  incorrectBadge: {
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  correctText: {
-    color: "#166534",
-    fontSize: 12,
-    fontWeight: "600" as "600",
-  },
-  incorrectText: {
-    color: "#991b1b",
-    fontSize: 12,
-    fontWeight: "600" as "600",
-  },
-  deleteButton: { fontSize: 15, color: "#ef4444", fontWeight: "600" as "600" },
   problemQuestion: {
     fontSize: 16,
-    fontWeight: "600" as "600",
+    fontWeight: "600",
     color: "#1f2937",
     marginBottom: 8,
   },
-  problemAnswer: { fontSize: 14, color: "#4b5563", marginBottom: 4 },
-  answerLabel: { fontWeight: "600" as "600" },
-  studentInput: {
-    marginTop: 8,
-  },
-  multipleChoiceOption: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 2,
-    borderColor: "#e5e7eb",
-  },
-  multipleChoiceOptionSelected: {
-    backgroundColor: "#dbeafe",
-    borderColor: "#2563eb",
-  },
-  multipleChoiceText: {
+  problemAnswer: {
     fontSize: 14,
-    color: "#1f2937",
-  },
-  multipleChoiceTextSelected: {
-    fontWeight: "600" as "600",
-    color: "#2563eb",
-  },
-  scoreCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 24,
-    marginBottom: 24,
-    alignItems: "center" as const,
-    elevation: 3,
-  },
-  scoreText: {
-    fontSize: 16,
-    color: "#6b7280",
-    marginBottom: 8,
-  },
-  scoreNumber: {
-    fontSize: 48,
-    fontWeight: "bold" as "bold",
-    color: "#2563eb",
+    color: "#4b5563",
     marginBottom: 4,
   },
-  scorePercentage: {
-    fontSize: 24,
-    fontWeight: "600" as "600",
-    color: "#16a34a",
+  modalOverlay: {
+    position: "fixed" as "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
   },
-  warningText: {
-    color: "#ef4444",
-    textAlign: "center" as "center",
-    fontSize: 14,
-    marginTop: 8,
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    maxWidth: 500,
+    width: "90%",
   },
   label: {
     fontSize: 14,
-    fontWeight: "600" as "600",
+    fontWeight: "600",
     color: "#374151",
     marginBottom: 8,
     marginTop: 12,
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: "#1f2937",
-    textAlignVertical: "top" as "top",
+  modalButtons: {
+    display: "flex",
+    gap: 12,
+    marginTop: 24,
   },
-  optionInputContainer: {
-    flexDirection: "row" as const,
-    gap: 8,
-    alignItems: "center" as const,
-  },
-  optionInput: { flex: 1 },
-  addOptionButton: {
-    backgroundColor: "#2563eb",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    justifyContent: "center" as const,
-  },
-  addOptionText: { color: "white", fontWeight: "600" as "600", fontSize: 14 },
-  optionsList: { marginTop: 12, gap: 8 },
-  optionItem: {
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    alignItems: "center" as const,
+  cancelButton: {
+    flex: 1,
     backgroundColor: "#f3f4f6",
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  optionText: { fontSize: 14, color: "#1f2937", flex: 1 },
-  removeOptionText: {
-    fontSize: 20,
-    color: "#ef4444",
-    fontWeight: "600" as "600",
-  },
-  difficultyButtons: { flexDirection: "row" as const, gap: 8, marginTop: 8 },
-  diffButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: "center" as const,
-    backgroundColor: "#f9fafb",
-  },
-  diffButtonActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
-  diffButtonText: {
-    fontSize: 14,
-    fontWeight: "600" as "600",
+    padding: 12,
+    border: "none",
+    cursor: "pointer",
     color: "#6b7280",
+    fontWeight: "600",
+    fontSize: 16,
   },
-  diffButtonTextActive: { color: "white" },
-  modalOverlay: {
+  confirmButton: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end" as const,
-  },
-  modalScroll: { flex: 1, justifyContent: "flex-end" as const },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalHeading: {
-    fontSize: 24,
-    fontWeight: "bold" as "bold",
-    color: "#1f2937",
-    marginBottom: 20,
-  },
-  modalButtons: { flexDirection: "row" as const, gap: 12, marginTop: 24 },
-  modalButton: {
-    flex: 1,
+    backgroundColor: "#2563eb",
     borderRadius: 8,
     padding: 12,
-    alignItems: "center" as const,
-  },
-  cancelButton: { backgroundColor: "#f3f4f6" },
-  cancelButtonText: {
-    color: "#6b7280",
-    fontWeight: "600" as "600",
-    fontSize: 16,
-  },
-  confirmButton: { backgroundColor: "#2563eb" },
-  confirmButtonText: {
+    border: "none",
+    cursor: "pointer",
     color: "white",
-    fontWeight: "600" as "600",
+    fontWeight: "600",
     fontSize: 16,
   },
-}
+};
