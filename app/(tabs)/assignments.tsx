@@ -80,6 +80,8 @@ export default function MathLearningPlatform() {
   const [error, setError] = useState<string | null>(null);
   const [userInput, setUserInput] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
+  const [practiceAnswer, setPracticeAnswer] = useState("");
+  const [practiceFeedback, setPracticeFeedback] = useState<"submitted" | "canceled" | null>(null);
 
   // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
@@ -102,6 +104,9 @@ export default function MathLearningPlatform() {
     [key: number]: string;
   }>({});
   const [showSubmission, setShowSubmission] = useState(false);
+  const [answerFeedback, setAnswerFeedback] = useState<{
+    [key: number]: "submitted" | "canceled" | null;
+  }>({});
 
   // Practice Tab Functions
   const validateInput = (text: string): boolean => {
@@ -130,6 +135,8 @@ export default function MathLearningPlatform() {
     setError(null);
     setInputError(null);
     setEquationData(null);
+    setPracticeAnswer("");
+    setPracticeFeedback(null);
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
@@ -151,6 +158,8 @@ export default function MathLearningPlatform() {
     setLoading(true);
     setError(null);
     setEquationData(null);
+    setPracticeAnswer("");
+    setPracticeFeedback(null);
 
     setTimeout(() => {
       setProblem(
@@ -409,6 +418,51 @@ export default function MathLearningPlatform() {
               </button>
             </>
           )}
+
+          {/* Answer Section */}
+          <ThemedView style={styles.answerSection}>
+            <ThemedText style={styles.answerLabel}>Your Answer:</ThemedText>
+            <textarea
+              style={styles.answerInput}
+              placeholder="Enter your answer here..."
+              value={practiceAnswer}
+              onChange={(e) => {
+                setPracticeAnswer(e.target.value);
+                setPracticeFeedback(null);
+              }}
+              rows={3}
+            />
+            {practiceFeedback && (
+              <ThemedText
+                style={
+                  practiceFeedback === "submitted"
+                    ? styles.feedbackSubmitted
+                    : styles.feedbackCanceled
+                }
+              >
+                {practiceFeedback === "submitted" ? "Submitted" : "Canceled"}
+              </ThemedText>
+            )}
+            <div style={styles.answerButtons}>
+              <button
+                onClick={() => {
+                  setPracticeFeedback("submitted");
+                }}
+                style={styles.submitAnswerButton}
+              >
+                <ThemedText style={styles.buttonText}>Submit</ThemedText>
+              </button>
+              <button
+                onClick={() => {
+                  setPracticeFeedback("canceled");
+                  setPracticeAnswer("");
+                }}
+                style={styles.cancelAnswerButton}
+              >
+                <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
+              </button>
+            </div>
+          </ThemedView>
         </>
       ) : (
         <ThemedView style={styles.centerContent}>
@@ -606,16 +660,79 @@ export default function MathLearningPlatform() {
               <ThemedText style={styles.problemQuestion}>
                 {item.question}
               </ThemedText>
-              <ThemedText style={styles.problemAnswer}>
-                <strong>Answer:</strong> {item.answer}
-              </ThemedText>
-              {role === "teacher" && (
-                <button
-                  onClick={() => deleteProblem(item.id)}
-                  style={styles.deleteButton}
-                >
-                  Delete
-                </button>
+              {role === "teacher" ? (
+                <>
+                  <ThemedText style={styles.problemAnswer}>
+                    <strong>Answer:</strong> {item.answer}
+                  </ThemedText>
+                  <button
+                    onClick={() => deleteProblem(item.id)}
+                    style={styles.deleteButton}
+                  >
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <>
+                  <ThemedText style={styles.answerLabel}>
+                    Your Answer:
+                  </ThemedText>
+                  <textarea
+                    style={styles.answerInput}
+                    placeholder="Enter your answer here..."
+                    value={studentAnswers[item.id] || ""}
+                    onChange={(e) =>
+                      setStudentAnswers({
+                        ...studentAnswers,
+                        [item.id]: e.target.value,
+                      })
+                    }
+                    rows={3}
+                  />
+                  {answerFeedback[item.id] && (
+                    <ThemedText
+                      style={
+                        answerFeedback[item.id] === "submitted"
+                          ? styles.feedbackSubmitted
+                          : styles.feedbackCanceled
+                      }
+                    >
+                      {answerFeedback[item.id] === "submitted"
+                        ? "Submitted"
+                        : "Canceled"}
+                    </ThemedText>
+                  )}
+                  <div style={styles.answerButtons}>
+                    <button
+                      onClick={() => {
+                        setAnswerFeedback({
+                          ...answerFeedback,
+                          [item.id]: "submitted",
+                        });
+                      }}
+                      style={styles.submitAnswerButton}
+                    >
+                      <ThemedText style={styles.buttonText}>Submit</ThemedText>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAnswerFeedback({
+                          ...answerFeedback,
+                          [item.id]: "canceled",
+                        });
+                        setStudentAnswers({
+                          ...studentAnswers,
+                          [item.id]: "",
+                        });
+                      }}
+                      style={styles.cancelAnswerButton}
+                    >
+                      <ThemedText style={styles.cancelButtonText}>
+                        Cancel
+                      </ThemedText>
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ))
@@ -1006,5 +1123,62 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "white",
     fontWeight: "600",
     fontSize: 16,
+  },
+  answerLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  answerInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "rgba(128, 128, 128, 0.3)",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: "rgba(128, 128, 128, 0.05)",
+    fontFamily: "inherit",
+    resize: "vertical" as "vertical",
+    marginBottom: 8,
+  },
+  answerButtons: {
+    display: "flex",
+    gap: 12,
+    marginTop: 8,
+  },
+  submitAnswerButton: {
+    flex: 1,
+    backgroundColor: "#34C759",
+    borderRadius: 8,
+    padding: 12,
+    border: "none",
+    cursor: "pointer",
+  },
+  cancelAnswerButton: {
+    flex: 1,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    padding: 12,
+    border: "1px solid rgba(128, 128, 128, 0.3)",
+    cursor: "pointer",
+  },
+  cancelButtonText: {
+    color: "#6b7280",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  feedbackSubmitted: {
+    color: "#16a34a",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  feedbackCanceled: {
+    color: "#6b7280",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 8,
   },
 };
