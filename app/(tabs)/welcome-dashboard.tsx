@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
 
 import { useSession } from '@/lib/auth-client';
+import { useAuth } from '@/lib/auth-context';
 
 const formatString = (str: string): string => {
   return str
@@ -19,6 +20,7 @@ export default function WelcomeDashboardScreen() {
     const { data: session } = useSession();
     const [ roleString, setRoleString ] = useState<string>("Unknown");
     const [ isRoleLoading, setRoleLoading] = useState<boolean>(true);
+    const { user, loading } = useAuth();
 
     useEffect(() => {
         setRoleString("");
@@ -29,7 +31,7 @@ export default function WelcomeDashboardScreen() {
             if(role === "unknown" || role === "") {
                 setRoleString("There was an error retrieving your user role. Please contact support.");
             }else{
-                setRoleString(`You are logged in as a ${formatString(role)}`);
+                setRoleString(`You are logged in as a ${formatString(role) + ". Loading? " + loading + " User? " + (user ? JSON.stringify(user) : "no")}`);
             }
 
             setRoleLoading(false);
@@ -68,8 +70,8 @@ export default function WelcomeDashboardScreen() {
 
 const getRole = async (): Promise<string> => {
     try {
-        //Log.log("Fetching user role...", LogLevel.INFO);
         console.log("Fetching user role...");
+
         // Stubbing out for now
         return Promise.resolve("teacher");
     } catch (error: any) {
