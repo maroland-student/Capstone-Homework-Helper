@@ -12,9 +12,9 @@ export default function AuthTest() {
         password: 'password123',
         name: 'Test User',
         image: undefined,
-        callbackURL: "/(tabs)/explore"
+        callbackURL: "/(tabs)/welcome-dashboard"
       });
-      
+
       if (data) {
         Alert.alert('Success', 'Test user created successfully!');
       } else {
@@ -32,7 +32,7 @@ export default function AuthTest() {
         password: 'password123',
         rememberMe: true
       });
-      
+
       if (data) {
         Alert.alert('Success', 'Login successful!');
       } else {
@@ -54,7 +54,7 @@ export default function AuthTest() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Auth Test</Text>
-      
+
       {user ? (
         <View>
           <Text style={styles.text}>Welcome, {user.name || user.email}!</Text>
