@@ -84,6 +84,10 @@ export default function MathLearningPlatform() {
   const [userInput, setUserInput] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
   const [practiceAnswer, setPracticeAnswer] = useState("");
+  const [practiceFeedback, setPracticeFeedback] = useState<
+    "submitted" | "canceled" | null
+  >(null);
+  const [showHint, setShowHint] = useState(false);
   const [practiceFeedback, setPracticeFeedback] = useState<"submitted" | "canceled" | null>(null);
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
@@ -243,6 +247,7 @@ export default function MathLearningPlatform() {
     setEquationData(null);
     setPracticeAnswer("");
     setPracticeFeedback(null);
+    setShowHint(false);
     setAnswerCorrect(null);
     setCorrectAnswer(null);
 
@@ -372,7 +377,7 @@ export default function MathLearningPlatform() {
     link.click();
     URL.revokeObjectURL(url);
 
-    alert("✓ File saved successfully!");
+    alert("File saved successfully!");
   };
 
   // Assignment Tab Functions
@@ -486,7 +491,7 @@ export default function MathLearningPlatform() {
   };
 
   const renderPracticeTab = () => (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto", paddingBottom: 100 }}>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Equation Practice</ThemedText>
       </ThemedView>
@@ -642,6 +647,14 @@ export default function MathLearningPlatform() {
               >
                 <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
               </button>
+              <button
+                onClick={() => setShowHint(!showHint)}
+                style={styles.hintButton}
+              >
+                <ThemedText style={styles.buttonText}>
+                  {showHint ? "Hide Hint" : "Get Hint"}
+                </ThemedText>
+              </button>
             </div>
             {practiceFeedback === "submitted" && answerCorrect !== null && (
               <ThemedText
@@ -764,7 +777,7 @@ export default function MathLearningPlatform() {
                   </ThemedText>
                   {role === "student" && isCompleted && submission && (
                     <ThemedText style={styles.completedLabel}>
-                      ✓ Completed - Score: {submission.score}/
+                      Completed - Score: {submission.score}/
                       {item.problems.length}
                     </ThemedText>
                   )}
@@ -937,7 +950,13 @@ export default function MathLearningPlatform() {
 
   return (
     <div
-      style={{ minHeight: "100vh", backgroundColor: "#f0f9ff", padding: 24 }}
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f0f9ff",
+        padding: 24,
+        paddingBottom: 200,
+        overflowY: "auto",
+      }}
     >
       <div style={styles.tabContainer}>
         <button
@@ -1318,6 +1337,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: "600",
     fontSize: 16,
   },
+  answerSection: {
+    marginTop: 24,
+  },
   answerLabel: {
     fontSize: 14,
     fontWeight: "600",
@@ -1339,11 +1361,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   answerButtons: {
     display: "flex",
-    gap: 12,
+    gap: 8,
     marginTop: 8,
+    flexWrap: "wrap" as "wrap",
   },
   submitAnswerButton: {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 120,
     backgroundColor: "#34C759",
     borderRadius: 8,
     padding: 12,
@@ -1351,12 +1375,34 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
   },
   cancelAnswerButton: {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 120,
     backgroundColor: "#f3f4f6",
     borderRadius: 8,
     padding: 12,
     border: "1px solid rgba(128, 128, 128, 0.3)",
     cursor: "pointer",
+  },
+  hintButton: {
+    flex: "1 1 auto",
+    minWidth: 120,
+    backgroundColor: "#FF9500",
+    borderRadius: 8,
+    padding: 12,
+    border: "none",
+    cursor: "pointer",
+  },
+  hintBox: {
+    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 12,
+    border: "1px solid rgba(255, 149, 0, 0.3)",
+  },
+  hintText: {
+    fontSize: 14,
+    color: "#1f2937",
+    lineHeight: 1.5,
   },
   cancelButtonText: {
     color: "#6b7280",
