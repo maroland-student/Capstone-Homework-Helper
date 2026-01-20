@@ -392,4 +392,137 @@ If no equation can be found, return:
             };
         }
     }
+
+    public static async generateStepCheckpoints(problemText: string, substitutedEquation: string): Promise<{
+        targetVariable: string;
+        startEquation: string;
+        steps: { instruction: string; checkpoint: string }[];
+        finalAnswer: string;
+    }> {
+        try {
+            const prompt = `You are helping build "checkpoint" step practice for Algebra 1 / early Algebra 2 topics.
+
+Given:
+- Word problem: "${problemText}"
+- Start equation (values substituted): "${substitutedEquation}"
+
+Task:
+1) Identify what the student should solve for (examples: "x", "y", or "x,y" for a system).
+2) Produce 2 to 8 checkpoints that correctly move from the start equation(s) to the solution.
+   - This must work for ANY topic (linear equations, systems by substitution/elimination, inequalities, quadratic solving, rational/radical equations, etc.).
+3) Each step must include:
+   - instruction: a short imperative that describes the single transformation (e.g., "Subtract 25 from both sides", "Add the equations to eliminate y", "Factor the quadratic", "Take the square root of both sides")
+   - checkpoint: the result *immediately after that step*
+4) Format rules for checkpoints:
+   - Plain text math only (no LaTeX environments).
+   - For a system, represent multiple equations as a single string separated by commas, e.g. "x + y = 10, 2x - y = 3"
+   - For inequalities, keep the inequality sign and direction (e.g., "x > 4").
+   - Keep variable names consistent with the start equation(s).
+5) If the start equation(s) are unclear or cannot be solved reliably, return steps: [].
+
+Return ONLY valid JSON with EXACT keys:
+{
+  "targetVariable": "x",
+  "startEquation": "100 = 25 + 0.15x",
+  "steps": [
+    { "instruction": "Subtract 25 from both sides", "checkpoint": "75 = 0.15x" },
+    { "instruction": "Divide both sides by 0.15", "checkpoint": "500 = x" }
+  ],
+  "finalAnswer": "x = 500"
+}`;
+
+            const response = await ai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    {
+                        role: "system",
+                        content:
+                            "You generate short, checkable algebra checkpoint steps. Always return valid JSON.",
+                    },
+                    { role: "user", content: prompt },
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.2,
+            });
+
+            const text = response.choices[0]?.message?.content ?? "{}";
+            const parsed = JSON.parse(text);
+
+            const steps =
+                Array.isArray(parsed.steps)
+                    ? parsed.steps
+                          .filter((s: any) => s && typeof s.instruction === "string" && typeof s.checkpoint === "string")
+                          .map((s: any) => ({ instruction: s.instruction.trim(), checkpoint: s.checkpoint.trim() }))
+                          .filter((s: any) => s.instruction.length > 0 && s.checkpoint.length > 0)
+                          .slice(0, 8)
+                    : [];
+
+            return {
+                targetVariable: typeof parsed.targetVariable === "string" ? parsed.targetVariable : "x",
+                startEquation: typeof parsed.startEquation === "string" ? parsed.startEquation : substitutedEquation,
+                steps,
+                finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : "",
+            };
+        } catch (err) {
+            ToggleLogs.log("Error generating step checkpoints: " + err, LogLevel.CRITICAL);
+            return {
+                targetVariable: "x",
+                startEquation: substitutedEquation,
+                steps: [],
+                finalAnswer: "",
+            };
+        }
+    }
+
+    public static async gradeStepAttempt(params: {
+        startEquation: string;
+        targetVariable: string;
+        stepInstruction: string;
+        expectedCheckpoint: string;
+        studentInput: string;
+    }): Promise<{ correct: boolean; feedback: string }> {
+        try {
+            const prompt = `You are grading ONE checkpoint step of a multi-step math solution.
+
+Start equation: "${params.startEquation}"
+Target variable: "${params.targetVariable}"
+Step instruction: "${params.stepInstruction}"
+Expected checkpoint (result after the step): "${params.expectedCheckpoint}"
+Student input: "${params.studentInput}"
+
+Decide if the student's input is mathematically equivalent to the expected checkpoint and matches the step intent.
+- This must work for any topic: linear equations, systems (comma-separated equations), inequalities, quadratics, rational/radical equations.
+- Accept equivalent rearrangements and harmless formatting differences (e.g., "x = 5" vs "5 = x", reordering equations in a system).
+- For inequalities: direction matters.
+- Prefer the specific checkpoint for this step; if the student skips ahead, mark incorrect unless their statement is exactly equivalent to the expected checkpoint.
+
+Return ONLY valid JSON:
+{ "correct": true, "feedback": "..." }
+
+If incorrect, feedback should be short and helpful, and should NOT reveal every remaining step.`;
+
+            const response = await ai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a strict but helpful math grader. Always return valid JSON.",
+                    },
+                    { role: "user", content: prompt },
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.2,
+            });
+
+            const text = response.choices[0]?.message?.content ?? "{}";
+            const parsed = JSON.parse(text);
+            return {
+                correct: Boolean(parsed.correct),
+                feedback: typeof parsed.feedback === "string" ? parsed.feedback : (Boolean(parsed.correct) ? "Correct." : "Incorrect."),
+            };
+        } catch (err) {
+            ToggleLogs.log("Error grading step attempt: " + err, LogLevel.CRITICAL);
+            return { correct: false, feedback: "Could not grade this step. Please try again." };
+        }
+    }
 }
