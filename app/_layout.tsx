@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import 'react-native-reanimated';
@@ -15,6 +15,7 @@ export const unstable_settings = {
 function RootLayoutNav() {
   const { user, loading, hasExplicitlyLoggedIn } = useAuth();
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
   const redirectingRef = useRef(false);
 
@@ -22,13 +23,11 @@ function RootLayoutNav() {
     if (loading || redirectingRef.current) return;
 
     const inAuthGroup = segments[0] === '(tabs)';
-    const isLoginScreen = segments.length === 1 && segments[0] === 'index';
+    const isLoginScreen = pathname === '/' || pathname === '/index';
     const isNavigatingWithinTabs = inAuthGroup && segments.length > 1;
 
-    // Don't redirect when navigating between tabs
     if (isNavigatingWithinTabs) return;
 
-    // Handle race condition: wait for session to update after login
     if (hasExplicitlyLoggedIn && !user && inAuthGroup && !isNavigatingWithinTabs) {
       const timeoutId = setTimeout(() => {
         if (!user) {
@@ -42,7 +41,6 @@ function RootLayoutNav() {
       return () => clearTimeout(timeoutId);
     }
 
-    // Redirect unauthenticated users away from protected routes
     if (!user && inAuthGroup && !isLoginScreen && !hasExplicitlyLoggedIn && !isNavigatingWithinTabs) {
       redirectingRef.current = true;
       router.replace('/');
@@ -51,15 +49,14 @@ function RootLayoutNav() {
       }, 100);
     }
 
-    // Redirect authenticated users from login to main app
-    if (user && hasExplicitlyLoggedIn && isLoginScreen) {
+    if (user && isLoginScreen) {
       redirectingRef.current = true;
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/welcome-dashboard');
       setTimeout(() => {
         redirectingRef.current = false;
       }, 100);
     }
-  }, [user, loading, segments, router, hasExplicitlyLoggedIn]);
+  }, [user, loading, segments, pathname, router, hasExplicitlyLoggedIn]);
 
   return (
     <Stack>

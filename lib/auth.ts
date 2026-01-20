@@ -5,6 +5,30 @@ import { db } from "../src/db";
 import { accountsTable, sessionsTable, usersTable, verificationsTable } from "../src/db/schema";
 import { sendOTPEmail } from "./email-service";
 
+function parseTrustedOriginsEnv(value?: string): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const baseTrustedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:8081",
+  "exp://localhost:8081",
+  "exp://10.0.2.2:8081",
+  "exp://127.0.0.1:8081",
+  "capstone-exploration://",
+];
+
+const trustedOrigins = Array.from(
+  new Set([
+    ...baseTrustedOrigins,
+    process.env.EXPO_PUBLIC_DEV_ORIGIN,
+    ...parseTrustedOriginsEnv(process.env.BETTER_AUTH_TRUSTED_ORIGINS),
+  ].filter(Boolean) as string[])
+);
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -19,7 +43,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
-    autoSignIn: true, // Allow auto sign-in for proper session management
+    autoSignIn: true,
     minPasswordLength: 6,
   },
   user: {
@@ -60,15 +84,7 @@ export const auth = betterAuth({
       enabled: false, // Disabled to prevent session nullification on reload/tab navigation
     },
   },
-  trustedOrigins: [
-    "http://localhost:3000",
-    "http://localhost:8081",
-    "exp://localhost:8081",
-    "exp://192.168.1.100:8081",
-    "exp://10.0.2.2:8081",
-    "exp://127.0.0.1:8081",
-    "capstone-exploration://",
-  ],
+  trustedOrigins,
   baseURL: "http://localhost:3000",
   secret: (() => {
     const secret = process.env.BETTER_AUTH_SECRET;

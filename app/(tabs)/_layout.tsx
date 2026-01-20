@@ -8,6 +8,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="welcome-dashboard"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {

@@ -88,10 +88,21 @@ const server = createServer(async (req, res) => {
       })
       
       const response = await auth.handler(webRequest)
-      
+      const headersAny = response.headers as any
+      const setCookies: string[] =
+        typeof headersAny.getSetCookie === 'function' ? headersAny.getSetCookie() : []
+
       response.headers.forEach((value, key) => {
+        if (key.toLowerCase() === 'set-cookie') return
         res.setHeader(key, value)
       })
+
+      if (setCookies.length > 0) {
+        res.setHeader('Set-Cookie', setCookies)
+      } else {
+        const maybeSetCookie = response.headers.get('set-cookie')
+        if (maybeSetCookie) res.setHeader('Set-Cookie', maybeSetCookie)
+      }
       
       res.writeHead(response.status)
       res.end(await response.text())
