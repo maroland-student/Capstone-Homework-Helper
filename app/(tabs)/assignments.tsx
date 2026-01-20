@@ -1,4 +1,7 @@
+import { useSubjects } from "@/lib/subjects-context";
 import { useState } from "react";
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 const ThemedText = ({ children, type, style }: any) => (
   <span
@@ -66,6 +69,7 @@ type EquationData = {
 };
 
 export default function MathLearningPlatform() {
+  const { selectedTopics } = useSubjects();
   const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
     "practice",
   );
@@ -84,6 +88,9 @@ export default function MathLearningPlatform() {
     "submitted" | "canceled" | null
   >(null);
   const [showHint, setShowHint] = useState(false);
+  const [practiceFeedback, setPracticeFeedback] = useState<"submitted" | "canceled" | null>(null);
+  const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
+  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
 
   // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
@@ -130,6 +137,107 @@ export default function MathLearningPlatform() {
     return true;
   };
 
+  const extractAnswerFromEquation = (substitutedEquation: string): number | null => {
+    try {
+      // Try to extract answer from equations like "v = 120/2 = 60" or "v = 60"
+      // Look for patterns like "= number" or "= expression = number"
+      const parts = substitutedEquation.split("=").map(p => p.trim());
+      
+      // Get the last part which should be the answer
+      const lastPart = parts[parts.length - 1];
+      
+      // Try to evaluate the expression
+      // Replace common math symbols
+      let expression = lastPart
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)") // LaTeX fractions
+        .replace(/\s+/g, ""); // Remove whitespace
+      
+      // Try to evaluate safely
+      // Only allow numbers, operators, and parentheses
+      if (/^[0-9+\-*/().\s]+$/.test(expression)) {
+        // Use Function constructor for safe evaluation
+        const result = Function(`"use strict"; return (${expression})`)();
+        if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
+          return result;
+        }
+      }
+    } catch (e) {
+      console.error("Error extracting answer from equation:", e);
+    }
+    return null;
+  };
+
+  const normalizeAnswer = (answer: string): number | null => {
+    try {
+      // Remove common units and text, keep only numbers and math operators
+      let cleaned = answer.trim();
+      
+      // Remove units like "km/h", "km", "hours", etc.
+      cleaned = cleaned.replace(/\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi, "");
+      
+      // Extract number (could be a fraction, decimal, or whole number)
+      // Try to evaluate if it's a math expression
+      cleaned = cleaned.replace(/\s+/g, "");
+      
+      // Check if it's just a number
+      const numberMatch = cleaned.match(/^-?\d+\.?\d*$/);
+      if (numberMatch) {
+        return parseFloat(numberMatch[0]);
+      }
+      
+      // Try to evaluate as expression (only if safe)
+      if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
+        const result = Function(`"use strict"; return (${cleaned})`)();
+        if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
+          return result;
+        }
+      }
+    } catch (e) {
+      console.error("Error normalizing answer:", e);
+    }
+    return null;
+  };
+
+  const checkAnswer = (studentAnswer: string): boolean => {
+    if (!studentAnswer.trim()) return false;
+    
+    // Try to get correct answer from substituted equation
+    let correctValue: number | null = null;
+    
+    if (equationData?.substitutedEquation) {
+      correctValue = extractAnswerFromEquation(equationData.substitutedEquation);
+    }
+    
+    // If we couldn't extract from equation, try to extract from problem text
+    if (correctValue === null && problem) {
+      // Look for patterns like "What is X?" where X might be in the answer
+      // This is a fallback - ideally we'd use AI to extract the answer
+      const answerMatch = problem.match(/(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i);
+      if (answerMatch) {
+        correctValue = parseFloat(answerMatch[1]);
+      }
+    }
+    
+    if (correctValue === null) {
+      // If we can't determine the correct answer, return false but don't show as incorrect
+      return false;
+    }
+    
+    // Normalize student answer
+    const studentValue = normalizeAnswer(studentAnswer);
+    
+    if (studentValue === null) {
+      return false;
+    }
+    
+    // Compare with tolerance for floating point errors
+    const tolerance = 0.01;
+    const isCorrect = Math.abs(studentValue - correctValue) < tolerance;
+    
+    setCorrectAnswer(correctValue.toString());
+    return isCorrect;
+  };
+
   const handleSubmitCustomProblem = async () => {
     if (!validateInput(userInput)) return;
 
@@ -140,42 +248,111 @@ export default function MathLearningPlatform() {
     setPracticeAnswer("");
     setPracticeFeedback(null);
     setShowHint(false);
+    setAnswerCorrect(null);
+    setCorrectAnswer(null);
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
 
-    // Simulate equation extraction
-    setTimeout(() => {
-      setEquationData({
-        equation: "v = \\frac{d}{t}",
-        substitutedEquation: "v = \\frac{120}{2} = 60",
-        variables: ["v (velocity)", "d (distance)", "t (time)"],
+    // Extract equation from the problem
+    setExtracting(true);
+    try {
+      const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ problem: trimmedProblem }),
       });
+
+      if (extractResponse.ok) {
+        const extractedData = await extractResponse.json();
+        if (extractedData.equation) {
+          setEquationData({
+            equation: extractedData.equation || "",
+            substitutedEquation: extractedData.substitutedEquation || "",
+            variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+          });
+        }
+      } else {
+        console.warn("Equation extraction failed");
+      }
+    } catch (extractErr) {
+      console.error("Error extracting equation:", extractErr);
+    } finally {
+      setExtracting(false);
       setLoading(false);
-    }, 1000);
+    }
 
     setUserInput("");
   };
 
-  const fetchMathProblem = () => {
-    setLoading(true);
-    setError(null);
-    setEquationData(null);
-    setPracticeAnswer("");
-    setPracticeFeedback(null);
-    setShowHint(false);
+  const fetchMathProblem = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setEquationData(null);
+      setPracticeAnswer("");
+      setPracticeFeedback(null);
+      setAnswerCorrect(null);
+      setCorrectAnswer(null);
 
-    setTimeout(() => {
-      setProblem(
-        "A car travels 120 km in 2 hours. What is its average speed in km/h?",
-      );
-      setEquationData({
-        equation: "v = \\frac{d}{t}",
-        substitutedEquation: "v = \\frac{120}{2} = 60",
-        variables: ["v (velocity)", "d (distance)", "t (time)"],
-      });
+      const topicIds = Array.from(selectedTopics);
+      const queryParams = topicIds.length > 0
+        ? `?topics=${topicIds.join(",")}`
+        : "";
+
+      const response = await fetch(`${API_BASE_URL}/api/openai/math-problem${queryParams}`);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Unknown error");
+        throw new Error(`Server error (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data || typeof data !== "object") {
+        throw new Error("Invalid response format from server");
+      }
+
+      const fullProblem = data.problem || "No problem generated";
+      setProblem(fullProblem);
+
+      // Extract equation from the problem
+      setExtracting(true);
+      try {
+        const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ problem: fullProblem }),
+        });
+
+        if (extractResponse.ok) {
+          const extractedData = await extractResponse.json();
+          if (extractedData.equation) {
+            setEquationData({
+              equation: extractedData.equation || "",
+              substitutedEquation: extractedData.substitutedEquation || "",
+              variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+            });
+          }
+        } else {
+          console.warn("Equation extraction failed");
+        }
+      } catch (extractErr) {
+        console.error("Error extracting equation:", extractErr);
+        // Don't show error for extraction failures, just continue without equation
+      } finally {
+        setExtracting(false);
+      }
+    } catch (err) {
+      console.error("Error fetching math problem:", err);
+      setError("Failed to load math problem. Please try again.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const saveEquationAsJSON = () => {
@@ -450,9 +627,12 @@ export default function MathLearningPlatform() {
             <div style={styles.answerButtons}>
               <button
                 onClick={() => {
+                  const isCorrect = checkAnswer(practiceAnswer);
+                  setAnswerCorrect(isCorrect);
                   setPracticeFeedback("submitted");
                 }}
                 style={styles.submitAnswerButton}
+                disabled={!practiceAnswer.trim()}
               >
                 <ThemedText style={styles.buttonText}>Submit</ThemedText>
               </button>
@@ -460,6 +640,8 @@ export default function MathLearningPlatform() {
                 onClick={() => {
                   setPracticeFeedback("canceled");
                   setPracticeAnswer("");
+                  setAnswerCorrect(null);
+                  setCorrectAnswer(null);
                 }}
                 style={styles.cancelAnswerButton}
               >
@@ -474,13 +656,18 @@ export default function MathLearningPlatform() {
                 </ThemedText>
               </button>
             </div>
-            {showHint && (
-              <ThemedView style={styles.hintBox}>
-                <ThemedText style={styles.hintText}>
-                  Hint: Start by identifying the given values and the formula
-                  needed to solve this problem.
-                </ThemedText>
-              </ThemedView>
+            {practiceFeedback === "submitted" && answerCorrect !== null && (
+              <ThemedText
+                style={
+                  answerCorrect
+                    ? styles.feedbackCorrect
+                    : styles.feedbackIncorrect
+                }
+              >
+                {answerCorrect
+                  ? "✓ Correct! Great job!"
+                  : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
+              </ThemedText>
             )}
           </ThemedView>
         </>
@@ -1233,5 +1420,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 14,
     fontWeight: "600",
     marginTop: 8,
+  },
+  feedbackCorrect: {
+    color: "#16a34a",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#dcfce7",
+    borderRadius: 8,
+    textAlign: "center" as "center",
+  },
+  feedbackIncorrect: {
+    color: "#dc2626",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#fef2f2",
+    borderRadius: 8,
+    textAlign: "center" as "center",
   },
 };
