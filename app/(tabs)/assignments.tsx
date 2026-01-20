@@ -88,7 +88,6 @@ export default function MathLearningPlatform() {
     "submitted" | "canceled" | null
   >(null);
   const [showHint, setShowHint] = useState(false);
-  const [practiceFeedback, setPracticeFeedback] = useState<"submitted" | "canceled" | null>(null);
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
 
