@@ -222,9 +222,12 @@ export default function MathLearningPlatform() {
         setCurrentHint(hintResponse.hint);
         setHintLevel(hintResponse.level);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to get hint:", error);
-      setCurrentHint("Unable to generate hint. Please try again.");
+      setCurrentHint(
+        `Error: ${error.message || "Unable to generate hint. Please check console for details."}`,
+      );
+      setHintLevel(hintGeneratorRef.current.getCurrentLevel());
     } finally {
       setLoadingHint(false);
     }
