@@ -412,8 +412,7 @@ If no equation can be found, return:
         response_format: { type: "json_object" },
       });
 
-<<<<<<< HEAD
-            const text = response.choices[0]?.message?.content ?? "{}";
+      const text = response.choices[0]?.message?.content ?? "{}";
             ToggleLogs.log(`Raw extraction response: ${text}`, LogLevel.DEBUG);
             
             let parsed: any;
@@ -811,89 +810,4 @@ Return ONLY valid JSON:
 
         return validatedSteps;
     }
-=======
-      const text = response.choices[0]?.message?.content ?? "{}";
-      ToggleLogs.log(`Raw extraction response: ${text}`, LogLevel.DEBUG);
-
-      let parsed: any;
-      try {
-        parsed = JSON.parse(text);
-      } catch (parseErr) {
-        ToggleLogs.log(
-          `Failed to parse JSON response: ${parseErr}. Raw text: ${text}`,
-          LogLevel.CRITICAL,
-        );
-        throw new Error(`Invalid JSON response from AI: ${parseErr}`);
-      }
-
-      if (!parsed || typeof parsed !== "object") {
-        ToggleLogs.log(
-          `Invalid parsed response: ${JSON.stringify(parsed)}`,
-          LogLevel.CRITICAL,
-        );
-        throw new Error("Invalid response structure from AI");
-      }
-
-      const cleanEquation = (eq: string): string => {
-        if (!eq) return "";
-        return eq
-          .replace(/\btext\s+and\s+/gi, "")
-          .replace(/\btext\s*,?\s*/gi, "")
-          .replace(/,\s*,\s*/g, ", ")
-          .replace(/^\s*,\s*/, "")
-          .replace(/\s*,\s*$/, "")
-          .trim();
-      };
-
-      let cleanedVariables: string[] = [];
-      if (Array.isArray(parsed.variables)) {
-        cleanedVariables = parsed.variables
-          .filter(
-            (v: any) =>
-              v !== null &&
-              v !== undefined &&
-              typeof v === "string" &&
-              v.trim() !== "",
-          )
-          .map((v: string) => v.trim());
-      } else if (parsed.variables && typeof parsed.variables === "object") {
-        cleanedVariables = Object.entries(parsed.variables)
-          .map(([key, value]) => {
-            if (value !== null && value !== undefined) {
-              return `${String(value)} ${key}`;
-            }
-            return null;
-          })
-          .filter((v): v is string => v !== null);
-      }
-
-      const cleanedEquation = cleanEquation(parsed.equation || "");
-      const cleanedSubstituted = cleanEquation(
-        parsed.substitutedEquation || "",
-      );
-
-      ToggleLogs.log(
-        `Extracted equation data: ${JSON.stringify({
-          equation: cleanedEquation,
-          substitutedEquation: cleanedSubstituted,
-          variablesCount: cleanedVariables.length,
-        })}`,
-        LogLevel.INFO,
-      );
-
-      return {
-        equation: cleanedEquation,
-        substitutedEquation: cleanedSubstituted,
-        variables: cleanedVariables,
-      };
-    } catch (err) {
-      ToggleLogs.log("Error extracting equation: " + err, LogLevel.CRITICAL);
-      return {
-        equation: "",
-        substitutedEquation: "",
-        variables: [],
-      };
-    }
-  }
->>>>>>> origin/staging
 }
