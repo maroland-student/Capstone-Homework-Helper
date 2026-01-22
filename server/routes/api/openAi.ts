@@ -12,6 +12,16 @@ import UrlUtils from "../../utilities/url_utils";
 const endpoint = "/api/openai";
 type QueryBody = { prompt: string; image?: string };
 
+type StepCheckpointsBody = { problem: string; substitutedEquation: string };
+
+type GradeStepBody = {
+    startEquation: string;
+    targetVariable: string;
+    stepInstruction: string;
+    expectedCheckpoint: string;
+    studentInput: string;
+};
+
 export function handles(req: IncomingMessage): boolean {
   if (req == undefined || req.url == undefined) return false;
   return req.url.startsWith("/api/openai");
@@ -94,6 +104,107 @@ export async function handle(
 
     return;
   }
+
+  if (req.url?.startsWith("/api/openai/step-checkpoints")) {
+        ToggleLogs.log('Handling step checkpoints request..', LogLevel.INFO);
+
+        if (req.method !== 'POST') {
+            UrlUtils.sendJson(res, 405, {
+                error: 'Method Not Allowed',
+                message: 'Only POST requests are allowed for this endpoint.',
+            });
+            return;
+        }
+
+        const body = (await UrlUtils.getBody(req)) as StepCheckpointsBody;
+        if (!body || typeof body !== 'object' || typeof body.problem !== 'string' || typeof body.substitutedEquation !== 'string') {
+            UrlUtils.sendJson(res, 400, {
+                error: 'Bad Request',
+                message: 'Request body must contain "problem" and "substitutedEquation" string fields.',
+            });
+            return;
+        }
+
+        try {
+            OpenAIHandler.generateStepCheckpoints(body.problem, body.substitutedEquation)
+                .then((result) => {
+                    UrlUtils.sendJson(res, 200, result);
+                })
+                .catch((err: any) => {
+                    ToggleLogs.log(`Error generating step checkpoints: ${err}`, LogLevel.CRITICAL);
+                    UrlUtils.sendJson(res, 500, {
+                        error: 'Internal Server Error',
+                        message: 'An error occurred while generating step checkpoints.',
+                    });
+                });
+        } catch (err: any) {
+            ToggleLogs.log(`Error processing step checkpoints request: ${err}`, LogLevel.CRITICAL);
+            UrlUtils.sendJson(res, 500, {
+                error: 'Internal Server Error',
+                message: 'An error occurred while processing the request.',
+            });
+        }
+
+        return;
+    }
+
+  if (req.url?.startsWith("/api/openai/grade-step")) {
+        ToggleLogs.log('Handling grade step request..', LogLevel.INFO);
+
+        if (req.method !== 'POST') {
+            UrlUtils.sendJson(res, 405, {
+                error: 'Method Not Allowed',
+                message: 'Only POST requests are allowed for this endpoint.',
+            });
+            return;
+        }
+
+        const body = (await UrlUtils.getBody(req)) as GradeStepBody;
+        if (
+            !body ||
+            typeof body !== 'object' ||
+            typeof body.startEquation !== 'string' ||
+            typeof body.targetVariable !== 'string' ||
+            typeof body.stepInstruction !== 'string' ||
+            typeof body.expectedCheckpoint !== 'string' ||
+            typeof body.studentInput !== 'string'
+        ) {
+            UrlUtils.sendJson(res, 400, {
+                error: 'Bad Request',
+                message:
+                    'Request body must contain "startEquation", "targetVariable", "stepInstruction", "expectedCheckpoint", and "studentInput" string fields.',
+            });
+            return;
+        }
+
+        try {
+            OpenAIHandler.gradeStepAttempt({
+                startEquation: body.startEquation,
+                targetVariable: body.targetVariable,
+                stepInstruction: body.stepInstruction,
+                expectedCheckpoint: body.expectedCheckpoint,
+                studentInput: body.studentInput,
+            })
+                .then((result) => {
+                    UrlUtils.sendJson(res, 200, result);
+                })
+                .catch((err: any) => {
+                    ToggleLogs.log(`Error grading step: ${err}`, LogLevel.CRITICAL);
+                    UrlUtils.sendJson(res, 500, {
+                        error: 'Internal Server Error',
+                        message: 'An error occurred while grading the step.',
+                    });
+                });
+        } catch (err: any) {
+            ToggleLogs.log(`Error processing grade step request: ${err}`, LogLevel.CRITICAL);
+            UrlUtils.sendJson(res, 500, {
+                error: 'Internal Server Error',
+                message: 'An error occurred while processing the request.',
+            });
+        }
+
+        return;
+    }
 
   if (req.url?.startsWith("/api/openai/math-problem")) {
     ToggleLogs.log("Handling OpenAI math problem request..", LogLevel.INFO);
