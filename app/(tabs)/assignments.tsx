@@ -1,4 +1,5 @@
 import { useSubjects } from "@/lib/subjects-context";
+import { validateEquationSyntax, validateEquationTemplate } from "@/utilities/equationValidator";
 import { useEffect, useState } from "react";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
@@ -271,9 +272,24 @@ export default function MathLearningPlatform() {
       if (extractResponse.ok) {
         const extractedData = await extractResponse.json();
         if (extractedData.equation) {
+          // Validate extracted equation is mathematically correct
+          const eq = extractedData.equation || "";
+          const subEq = extractedData.substitutedEquation || "";
+          
+          const syntaxCheck = validateEquationSyntax(subEq);
+          const templateCheck = validateEquationTemplate(eq, subEq);
+          
+          if (!syntaxCheck.isValid || !templateCheck.isValid) {
+            console.warn("Extracted equation failed validation:", {
+              syntaxErrors: syntaxCheck.errors,
+              templateErrors: templateCheck.errors,
+            });
+            // Still set it, but log the warnings
+          }
+          
           setEquationData({
-            equation: extractedData.equation || "",
-            substitutedEquation: extractedData.substitutedEquation || "",
+            equation: eq,
+            substitutedEquation: subEq,
             variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
           });
         }
@@ -336,9 +352,23 @@ export default function MathLearningPlatform() {
         if (extractResponse.ok) {
           const extractedData = await extractResponse.json();
           if (extractedData.equation) {
+            // Validate extracted equation is mathematically correct
+            const eq = extractedData.equation || "";
+            const subEq = extractedData.substitutedEquation || "";
+            
+            const syntaxCheck = validateEquationSyntax(subEq);
+            const templateCheck = validateEquationTemplate(eq, subEq);
+            
+            if (!syntaxCheck.isValid || !templateCheck.isValid) {
+              console.warn("Extracted equation failed validation:", {
+                syntaxErrors: syntaxCheck.errors,
+                templateErrors: templateCheck.errors,
+              });
+            }
+            
             setEquationData({
-              equation: extractedData.equation || "",
-              substitutedEquation: extractedData.substitutedEquation || "",
+              equation: eq,
+              substitutedEquation: subEq,
               variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
             });
           }
@@ -506,6 +536,7 @@ export default function MathLearningPlatform() {
           if (stepData.finalAnswer) {
             setStepFeedbackText(`${feedback} Finished. Final answer: ${stepData.finalAnswer}`);
           }
+          // All steps complete - disable further step submissions
         } else {
           setCurrentStepIndex(next);
         }
@@ -761,20 +792,16 @@ export default function MathLearningPlatform() {
                     Step {Math.min(currentStepIndex + 1, stepData.steps.length)} of {stepData.steps.length}
                   </ThemedText>
 
-                  {currentStepIndex < stepData.steps.length ? (
-                    <ThemedText style={styles.stepInstruction}>
-                      {stepData.steps[currentStepIndex].instruction}
-                    </ThemedText>
-                  ) : (
+                  {currentStepIndex >= stepData.steps.length && (
                     <ThemedText style={styles.feedbackCorrect}>
-                      ✓ Completed all steps. {stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : ""}
+                      ✓ Completed all steps.{stepData.finalAnswer ? ` Final answer: ${stepData.finalAnswer}` : ""}
                     </ThemedText>
                   )}
 
                   {stepFeedbackText && (
                     <ThemedText
                       style={
-                        stepFeedbackCorrect
+                        stepFeedbackCorrect === true
                           ? styles.feedbackCorrect
                           : styles.feedbackIncorrect
                       }
@@ -799,12 +826,17 @@ export default function MathLearningPlatform() {
                 ? "Your Step Result:"
                 : "Your Answer:"}
             </ThemedText>
+            <ThemedText style={styles.inputHint}>
+              {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
+                ? "Tip: Type the equation after doing this step. Example: '2x = 10' or 'x + 5 = 15'"
+                : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
+            </ThemedText>
             <textarea
               style={styles.answerInput}
               placeholder={
                 stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
-                  ? "Enter the resulting equation/expression for this step..."
-                  : "Enter your answer here..."
+                  ? "Example: 2x = 10 or x + 5 = 15"
+                  : "Example: 42 or x = 42"
               }
               value={practiceAnswer}
               onChange={(e) => {
@@ -814,6 +846,9 @@ export default function MathLearningPlatform() {
                 setStepFeedbackCorrect(null);
               }}
               rows={3}
+              disabled={
+                (stepData && stepData.steps.length > 0 && currentStepIndex >= stepData.steps.length && answerCorrect === true) || false
+              }
             />
             {practiceFeedback && (
               <ThemedText
@@ -839,7 +874,10 @@ export default function MathLearningPlatform() {
                   setPracticeFeedback("submitted");
                 }}
                 style={styles.submitAnswerButton}
-                disabled={!practiceAnswer.trim()}
+                disabled={
+                  !practiceAnswer.trim() ||
+                  (stepData && stepData.steps.length > 0 && currentStepIndex >= stepData.steps.length && answerCorrect === true) || false
+                }
               >
                 <ThemedText style={styles.buttonText}>Submit</ThemedText>
               </button>
@@ -1586,6 +1624,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#374151",
     marginTop: 12,
     marginBottom: 8,
+  },
+  inputHint: {
+    fontSize: 13,
+    color: "#6b7280",
+    fontStyle: "italic",
+    marginBottom: 6,
+    lineHeight: 1.4,
   },
   answerInput: {
     width: "100%",

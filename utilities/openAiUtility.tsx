@@ -272,6 +272,10 @@ INSTRUCTIONS:
 1. Identify the BASIC FORMULA (like "y = mx + b" for linear, "A = lw" for area, "d = rt" for distance)
 2. Create the SUBSTITUTED EQUATION with actual values from the problem
 3. Extract variable values from the substituted equation and list them simply
+4. CRITICAL: Verify the substituted equation is mathematically correct:
+   - All numbers should be correct based on the problem text
+   - The equation should be solvable
+   - If you cannot verify correctness, return empty strings
 
 Return ONLY a valid JSON object with this EXACT structure:
 {
@@ -326,16 +330,41 @@ If no equation can be found, return:
             
             let parsed: any;
             try {
-                parsed = JSON.parse(text);
-            } catch (parseErr) {
-                ToggleLogs.log(`Failed to parse JSON response: ${parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
-                throw new Error(`Invalid JSON response from AI: ${parseErr}`);
+                // Try to clean the response if it has markdown code blocks
+                let cleanedText = text.trim();
+                if (cleanedText.startsWith('```json')) {
+                    cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+                } else if (cleanedText.startsWith('```')) {
+                    cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+                }
+                
+                parsed = JSON.parse(cleanedText);
+            } catch (parseErr: any) {
+                ToggleLogs.log(`Failed to parse JSON response: ${parseErr?.message || parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
+                throw new Error(`Invalid JSON response from AI: ${parseErr?.message || parseErr}`);
             }
             
             // Validate response structure
-            if (!parsed || typeof parsed !== 'object') {
-                ToggleLogs.log(`Invalid parsed response: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
-                throw new Error('Invalid response structure from AI');
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                ToggleLogs.log(`Invalid parsed response type: ${typeof parsed}, value: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
+                throw new Error('Invalid response structure from AI: expected object, got ' + typeof parsed);
+            }
+            
+            // Validate required fields exist and are correct types
+            const validationErrors: string[] = [];
+            if (typeof parsed.equation !== 'string') {
+                validationErrors.push(`Missing or invalid 'equation' field (expected string, got ${typeof parsed.equation})`);
+            }
+            if (typeof parsed.substitutedEquation !== 'string') {
+                validationErrors.push(`Missing or invalid 'substitutedEquation' field (expected string, got ${typeof parsed.substitutedEquation})`);
+            }
+            if (!Array.isArray(parsed.variables) && typeof parsed.variables !== 'object') {
+                validationErrors.push(`Missing or invalid 'variables' field (expected array or object, got ${typeof parsed.variables})`);
+            }
+            
+            if (validationErrors.length > 0) {
+                ToggleLogs.log(`JSON structure validation failed: ${validationErrors.join('; ')}. Parsed: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
+                throw new Error(`Invalid JSON structure: ${validationErrors.join('; ')}`);
             }
             
             // Clean equations - remove unwanted text
@@ -372,10 +401,18 @@ If no equation can be found, return:
             const cleanedEquation = cleanEquation(parsed.equation || "");
             const cleanedSubstituted = cleanEquation(parsed.substitutedEquation || "");
             
+            // Final validation: ensure we have at least one equation
+            if (!cleanedEquation && !cleanedSubstituted) {
+                ToggleLogs.log(`Warning: Both equations are empty after cleaning. Original: ${JSON.stringify(parsed)}`, LogLevel.WARN);
+            }
+            
+            // Log the extraction result for debugging
             ToggleLogs.log(`Extracted equation data: ${JSON.stringify({
                 equation: cleanedEquation,
                 substitutedEquation: cleanedSubstituted,
-                variablesCount: cleanedVariables.length
+                variablesCount: cleanedVariables.length,
+                originalEquation: parsed.equation,
+                originalSubstituted: parsed.substitutedEquation
             })}`, LogLevel.INFO);
             
             return {
@@ -418,7 +455,12 @@ Task:
    - For a system, represent multiple equations as a single string separated by commas, e.g. "x + y = 10, 2x - y = 3"
    - For inequalities, keep the inequality sign and direction (e.g., "x > 4").
    - Keep variable names consistent with the start equation(s).
-5) If the start equation(s) are unclear or cannot be solved reliably, return steps: [].
+5) CRITICAL VALIDATION: Each checkpoint MUST be mathematically correct:
+   - Step 1 checkpoint must be a valid transformation from the start equation
+   - Step 2 checkpoint must be a valid transformation from Step 1 checkpoint
+   - And so on. Verify each step is correct before including it.
+   - If you cannot verify a step is mathematically correct, do NOT include it.
+6) If the start equation(s) are unclear or cannot be solved reliably, return steps: [].
 
 Return ONLY valid JSON with EXACT keys:
 {
@@ -446,9 +488,31 @@ Return ONLY valid JSON with EXACT keys:
             });
 
             const text = response.choices[0]?.message?.content ?? "{}";
-            const parsed = JSON.parse(text);
+            ToggleLogs.log(`Raw step checkpoints response: ${text}`, LogLevel.DEBUG);
+            
+            let parsed: any;
+            try {
+                // Try to clean the response if it has markdown code blocks
+                let cleanedText = text.trim();
+                if (cleanedText.startsWith('```json')) {
+                    cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+                } else if (cleanedText.startsWith('```')) {
+                    cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+                }
+                
+                parsed = JSON.parse(cleanedText);
+            } catch (parseErr: any) {
+                ToggleLogs.log(`Failed to parse step checkpoints JSON: ${parseErr?.message || parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
+                throw new Error(`Invalid JSON response from AI: ${parseErr?.message || parseErr}`);
+            }
+            
+            // Validate response structure
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                ToggleLogs.log(`Invalid parsed step checkpoints response: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
+                throw new Error('Invalid response structure from AI: expected object');
+            }
 
-            const steps =
+            let steps =
                 Array.isArray(parsed.steps)
                     ? parsed.steps
                           .filter((s: any) => s && typeof s.instruction === "string" && typeof s.checkpoint === "string")
@@ -457,9 +521,13 @@ Return ONLY valid JSON with EXACT keys:
                           .slice(0, 8)
                     : [];
 
+            // Validate step checkpoints are mathematically correct (basic syntax check)
+            const startEq = typeof parsed.startEquation === "string" ? parsed.startEquation : substitutedEquation;
+            steps = this.validateStepCheckpointsSync(startEq, steps);
+
             return {
                 targetVariable: typeof parsed.targetVariable === "string" ? parsed.targetVariable : "x",
-                startEquation: typeof parsed.startEquation === "string" ? parsed.startEquation : substitutedEquation,
+                startEquation: startEq,
                 steps,
                 finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : "",
             };
@@ -515,7 +583,30 @@ If incorrect, feedback should be short and helpful, and should NOT reveal every 
             });
 
             const text = response.choices[0]?.message?.content ?? "{}";
-            const parsed = JSON.parse(text);
+            ToggleLogs.log(`Raw grade step response: ${text}`, LogLevel.DEBUG);
+            
+            let parsed: any;
+            try {
+                // Try to clean the response if it has markdown code blocks
+                let cleanedText = text.trim();
+                if (cleanedText.startsWith('```json')) {
+                    cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+                } else if (cleanedText.startsWith('```')) {
+                    cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+                }
+                
+                parsed = JSON.parse(cleanedText);
+            } catch (parseErr: any) {
+                ToggleLogs.log(`Failed to parse grade step JSON: ${parseErr?.message || parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
+                return { correct: false, feedback: "Could not grade this step. Please try again." };
+            }
+            
+            // Validate response structure
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                ToggleLogs.log(`Invalid parsed grade step response: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
+                return { correct: false, feedback: "Could not grade this step. Please try again." };
+            }
+            
             return {
                 correct: Boolean(parsed.correct),
                 feedback: typeof parsed.feedback === "string" ? parsed.feedback : (Boolean(parsed.correct) ? "Correct." : "Incorrect."),
@@ -524,5 +615,112 @@ If incorrect, feedback should be short and helpful, and should NOT reveal every 
             ToggleLogs.log("Error grading step attempt: " + err, LogLevel.CRITICAL);
             return { correct: false, feedback: "Could not grade this step. Please try again." };
         }
+    }
+
+    /**
+     * Validates that step checkpoints are mathematically correct transformations
+     * Uses AI to verify each step is a valid transformation from the previous step
+     */
+    private static async validateStepCheckpoints(
+        startEquation: string,
+        steps: { instruction: string; checkpoint: string }[]
+    ): Promise<{ instruction: string; checkpoint: string }[]> {
+        if (steps.length === 0) return [];
+
+        const validatedSteps: { instruction: string; checkpoint: string }[] = [];
+        let previousEquation = startEquation;
+
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            
+            try {
+                // Use AI to verify this step is a valid transformation
+                const prompt = `Verify this algebra step is mathematically correct:
+
+Previous equation: "${previousEquation}"
+Step instruction: "${step.instruction}"
+Result checkpoint: "${step.checkpoint}"
+
+Is the checkpoint a valid mathematical transformation from the previous equation following the instruction?
+- Check that the operation described in the instruction was correctly applied
+- Verify the result is mathematically equivalent and correct
+- For systems: verify both equations are correctly transformed
+- For inequalities: verify the direction is correct
+
+Return ONLY valid JSON:
+{ "isValid": true/false, "reason": "brief explanation" }`;
+
+                const response = await ai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You are a strict math validator. Verify algebraic transformations are correct. Always return valid JSON.",
+                        },
+                        { role: "user", content: prompt },
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0.1,
+                });
+
+                const text = response.choices[0]?.message?.content ?? "{}";
+                const validation = JSON.parse(text);
+
+                if (Boolean(validation.isValid)) {
+                    validatedSteps.push(step);
+                    previousEquation = step.checkpoint;
+                } else {
+                    ToggleLogs.log(
+                        `Step ${i + 1} failed validation: ${validation.reason || "Invalid transformation"}`,
+                        LogLevel.WARN
+                    );
+                    // Stop at first invalid step
+                    break;
+                }
+            } catch (err) {
+                ToggleLogs.log(`Error validating step ${i + 1}: ${err}`, LogLevel.WARN);
+                // If validation fails, include the step but log a warning
+                validatedSteps.push(step);
+                previousEquation = step.checkpoint;
+            }
+        }
+
+        return validatedSteps;
+    }
+
+    /**
+     * Synchronous version that validates steps without AI (faster, less thorough)
+     * Checks basic syntax and structure
+     */
+    private static validateStepCheckpointsSync(
+        startEquation: string,
+        steps: { instruction: string; checkpoint: string }[]
+    ): { instruction: string; checkpoint: string }[] {
+        if (steps.length === 0) return [];
+
+        const validatedSteps: { instruction: string; checkpoint: string }[] = [];
+        let previousEquation = startEquation;
+
+        for (const step of steps) {
+            // Basic validation: checkpoint should contain = or inequality sign
+            const hasEquals = step.checkpoint.includes("=") || /[<>≤≥]/.test(step.checkpoint);
+            if (!hasEquals) {
+                ToggleLogs.log(`Step checkpoint missing = or inequality: ${step.checkpoint}`, LogLevel.WARN);
+                break;
+            }
+
+            // Check for balanced parentheses
+            const openParens = (step.checkpoint.match(/\(/g) || []).length;
+            const closeParens = (step.checkpoint.match(/\)/g) || []).length;
+            if (openParens !== closeParens) {
+                ToggleLogs.log(`Step checkpoint has unbalanced parentheses: ${step.checkpoint}`, LogLevel.WARN);
+                break;
+            }
+
+            validatedSteps.push(step);
+            previousEquation = step.checkpoint;
+        }
+
+        return validatedSteps;
     }
 }
