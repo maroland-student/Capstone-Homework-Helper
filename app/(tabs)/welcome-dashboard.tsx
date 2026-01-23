@@ -5,6 +5,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
 import { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
+import {router} from "expo-router";
 
 import { DashboardCard } from "@/components/ui/dashboard-card";
 
@@ -99,42 +100,42 @@ export default function WelcomeDashboardScreen() {
                     title = "My Courses"
                     description="Pick up where you left off"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Courses", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/subjects")}
                 />
 
                 <DashboardCard
                     title = "Stats"
                     description="View information about your learning"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Stats", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/settings")}
                 />
 
                 <DashboardCard
                     title = "Account Settings"
                     description="Update Profile and Security Settings"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Settings", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/settings")}
                 />
 
                 <DashboardCard
                     title = "Subjects"
                     description="Manage your focus areas"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Subjects", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/subjects")}
                 />
 
                 <DashboardCard
                     title = "Practice"
                     description="Brush up on your skills"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Practice", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/equations")}
                 />
 
                 <DashboardCard
                     title = "Announcements"
                     description="See Updates and Messages"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Announcements", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/settings")}
                 />
 
             </ThemedView>
@@ -158,21 +159,21 @@ export default function WelcomeDashboardScreen() {
                     title = "Help Center"
                     description="Guides and Additional Troubleshooting"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Help", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/settings")}
                 />
 
                 <DashboardCard
                     title = "Contact Instructor"
                     description="Reach out to your Teacher/Supervisor "
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Contact Instructor", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/settings")}
                 />
 
                 <DashboardCard
                     title = "Feedback"
                     description="Report Fixes"
                     style={styles.cardGridIndv}
-                    onPress={() => Alert.alert("Go to Feedback", "Coming Soon", [{ text: "OK"}])}
+                    onPress={() => router.push("/settings")}
                 />
 
 
