@@ -23,7 +23,8 @@ const ThemedView = ({ children, style }: any) => (
 );
 
 const LaTeXRenderer = ({ equation, style }: any) => (
-  <div style={{ padding: 16, fontFamily: "monospace", fontSize: 18, ...style }}>
+  <div style={{ padding: 16, fontFamily: "monospace", fontSize: 18,
+        overflowX: "auto", whiteSpace: "pre", WebkitOverflowScrolling: "touch", ...style }}>
     {equation}
   </div>
 );
@@ -1256,10 +1257,10 @@ export default function MathLearningPlatform() {
   };
 
   return (
-    <div
-      style={{ minHeight: "100vh", backgroundColor: "#f0f9ff", padding: 24 }}
-    >
-      <div style={styles.tabContainer}>
+    <div style={styles.page}>
+      <div style={styles.header}>
+        <div style={styles.tabContainer}>
+        
         <button
           onClick={() => setActiveTab("practice")}
           style={{
@@ -1293,12 +1294,15 @@ export default function MathLearningPlatform() {
           </span>
         </button>
       </div>
+      </div>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={styles.scrollContainer}>
+        <div style={{marginTop: 24 }}>
         {activeTab === "practice"
           ? renderPracticeTab()
           : renderAssignmentsTab()}
       </div>
+    </div>
     </div>
   );
 }
@@ -1311,6 +1315,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     paddingBottom: 8,
     maxWidth: 900,
     margin: "0 auto",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    backgroundColor: "#f0f9ff",
   },
   tab: {
     padding: "12px 24px",
@@ -1731,6 +1739,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 16,
     marginBottom: 16,
     border: "1px solid rgba(255, 149, 0, 0.3)",
+    maxHeight: 220,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
   },
   hintHeader: {
     display: "flex",
@@ -1757,6 +1768,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#1f2937",
     lineHeight: 1.6,
     margin: 0,
+    whiteSpace: "pre-wrap" as const,
+    wordBreak: "break-word" as const,
   },
   cancelButtonText: {
     color: "#6b7280",
@@ -1797,4 +1810,32 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     textAlign: "center" as "center",
   },
+  page: {
+    height: "100vh",
+    backgroundColor: "#f0f9ff",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+
+  header: {
+    padding: 24, 
+    paddingBottom: 0,
+    position: "sticky" as const,
+    top: 0,
+    zIndex: 10,
+    backgroundColor: "#f0f9ff",
+  },
+  scrollContainer: {
+    flex: 1,
+    overflowY: "auto",
+    overflowX: "auto",
+    padding: 24,
+    paddingTop: 0,
+    WebkitOverflowScrolling: "touch",
+    overscrollBehavior: "contain",
+    boxSizing: "border-box",
+  },
+
+  
 };
