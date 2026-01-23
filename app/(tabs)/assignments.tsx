@@ -1,5 +1,6 @@
+import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -26,19 +27,6 @@ const LaTeXRenderer = ({ equation, style }: any) => (
   </div>
 );
 
-const ParallaxScrollView = ({ children, headerBackgroundColor }: any) => (
-  <div
-    style={{
-      minHeight: "100vh",
-      backgroundColor: "#f0f9ff",
-      padding: 24,
-    }}
-  >
-    {children}
-  </div>
-);
-
-// Types
 type Problem = {
   id: number;
   question: string;
@@ -62,24 +50,16 @@ type StudentSubmission = {
   score?: number;
 };
 
-type EquationData = {
-  equation: string;
-  substitutedEquation: string;
-  variables: string[];
-};
-
 export default function MathLearningPlatform() {
   const { selectedTopics } = useSubjects();
   const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
     "practice",
   );
 
-  // Practice Tab State
   const [problem, setProblem] = useState<string | null>(null);
   const [equationData, setEquationData] = useState<EquationData | null>(null);
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userInput, setUserInput] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
@@ -87,11 +67,14 @@ export default function MathLearningPlatform() {
   const [practiceFeedback, setPracticeFeedback] = useState<
     "submitted" | "canceled" | null
   >(null);
-  const [showHint, setShowHint] = useState(false);
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
 
-  // Assignment Tab State
+  const [currentHint, setCurrentHint] = useState<string | null>(null);
+  const [hintLevel, setHintLevel] = useState<number>(0);
+  const [loadingHint, setLoadingHint] = useState(false);
+  const hintGeneratorRef = useRef<HintGenerator | null>(null);
+
   const [role, setRole] = useState<"teacher" | "student">("teacher");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
@@ -116,7 +99,6 @@ export default function MathLearningPlatform() {
     [key: number]: "submitted" | "canceled" | null;
   }>({});
 
-  // Practice Tab Functions
   const validateInput = (text: string): boolean => {
     setInputError(null);
     if (!text || text.trim().length === 0) {
@@ -136,25 +118,18 @@ export default function MathLearningPlatform() {
     return true;
   };
 
-  const extractAnswerFromEquation = (substitutedEquation: string): number | null => {
+  const extractAnswerFromEquation = (
+    substitutedEquation: string,
+  ): number | null => {
     try {
-      // Try to extract answer from equations like "v = 120/2 = 60" or "v = 60"
-      // Look for patterns like "= number" or "= expression = number"
-      const parts = substitutedEquation.split("=").map(p => p.trim());
-      
-      // Get the last part which should be the answer
+      const parts = substitutedEquation.split("=").map((p) => p.trim());
       const lastPart = parts[parts.length - 1];
-      
-      // Try to evaluate the expression
-      // Replace common math symbols
+
       let expression = lastPart
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)") // LaTeX fractions
-        .replace(/\s+/g, ""); // Remove whitespace
-      
-      // Try to evaluate safely
-      // Only allow numbers, operators, and parentheses
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+        .replace(/\s+/g, "");
+
       if (/^[0-9+\-*/().\s]+$/.test(expression)) {
-        // Use Function constructor for safe evaluation
         const result = Function(`"use strict"; return (${expression})`)();
         if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
           return result;
@@ -168,23 +143,18 @@ export default function MathLearningPlatform() {
 
   const normalizeAnswer = (answer: string): number | null => {
     try {
-      // Remove common units and text, keep only numbers and math operators
       let cleaned = answer.trim();
-      
-      // Remove units like "km/h", "km", "hours", etc.
-      cleaned = cleaned.replace(/\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi, "");
-      
-      // Extract number (could be a fraction, decimal, or whole number)
-      // Try to evaluate if it's a math expression
+      cleaned = cleaned.replace(
+        /\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi,
+        "",
+      );
       cleaned = cleaned.replace(/\s+/g, "");
-      
-      // Check if it's just a number
+
       const numberMatch = cleaned.match(/^-?\d+\.?\d*$/);
       if (numberMatch) {
         return parseFloat(numberMatch[0]);
       }
-      
-      // Try to evaluate as expression (only if safe)
+
       if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
         const result = Function(`"use strict"; return (${cleaned})`)();
         if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
@@ -199,42 +169,71 @@ export default function MathLearningPlatform() {
 
   const checkAnswer = (studentAnswer: string): boolean => {
     if (!studentAnswer.trim()) return false;
-    
-    // Try to get correct answer from substituted equation
+
     let correctValue: number | null = null;
-    
+
     if (equationData?.substitutedEquation) {
-      correctValue = extractAnswerFromEquation(equationData.substitutedEquation);
+      correctValue = extractAnswerFromEquation(
+        equationData.substitutedEquation,
+      );
     }
-    
-    // If we couldn't extract from equation, try to extract from problem text
+
     if (correctValue === null && problem) {
-      // Look for patterns like "What is X?" where X might be in the answer
-      // This is a fallback - ideally we'd use AI to extract the answer
-      const answerMatch = problem.match(/(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i);
+      const answerMatch = problem.match(
+        /(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i,
+      );
       if (answerMatch) {
         correctValue = parseFloat(answerMatch[1]);
       }
     }
-    
+
     if (correctValue === null) {
-      // If we can't determine the correct answer, return false but don't show as incorrect
       return false;
     }
-    
-    // Normalize student answer
+
     const studentValue = normalizeAnswer(studentAnswer);
-    
+
     if (studentValue === null) {
       return false;
     }
-    
-    // Compare with tolerance for floating point errors
+
     const tolerance = 0.01;
     const isCorrect = Math.abs(studentValue - correctValue) < tolerance;
-    
+
     setCorrectAnswer(correctValue.toString());
     return isCorrect;
+  };
+
+  const handleGetHint = async () => {
+    if (!problem) return;
+
+    if (!hintGeneratorRef.current) {
+      hintGeneratorRef.current = new HintGenerator(problem, equationData);
+    }
+
+    if (!hintGeneratorRef.current.hasMoreHints()) {
+      return;
+    }
+
+    setLoadingHint(true);
+    try {
+      const hintResponse = await hintGeneratorRef.current.getNextHint();
+      if (hintResponse) {
+        setCurrentHint(hintResponse.hint);
+        setHintLevel(hintResponse.level);
+      }
+    } catch (error) {
+      console.error("Failed to get hint:", error);
+      setCurrentHint("Unable to generate hint. Please try again.");
+    } finally {
+      setLoadingHint(false);
+    }
+  };
+
+  const resetHints = () => {
+    setCurrentHint(null);
+    setHintLevel(0);
+    hintGeneratorRef.current = null;
   };
 
   const handleSubmitCustomProblem = async () => {
@@ -246,23 +245,25 @@ export default function MathLearningPlatform() {
     setEquationData(null);
     setPracticeAnswer("");
     setPracticeFeedback(null);
-    setShowHint(false);
     setAnswerCorrect(null);
     setCorrectAnswer(null);
+    resetHints();
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
 
-    // Extract equation from the problem
     setExtracting(true);
     try {
-      const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const extractResponse = await fetch(
+        `${API_BASE_URL}/api/openai/extract-equation`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ problem: trimmedProblem }),
         },
-        body: JSON.stringify({ problem: trimmedProblem }),
-      });
+      );
 
       if (extractResponse.ok) {
         const extractedData = await extractResponse.json();
@@ -270,7 +271,9 @@ export default function MathLearningPlatform() {
           setEquationData({
             equation: extractedData.equation || "",
             substitutedEquation: extractedData.substitutedEquation || "",
-            variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+            variables: Array.isArray(extractedData.variables)
+              ? extractedData.variables
+              : [],
           });
         }
       } else {
@@ -295,13 +298,15 @@ export default function MathLearningPlatform() {
       setPracticeFeedback(null);
       setAnswerCorrect(null);
       setCorrectAnswer(null);
+      resetHints();
 
       const topicIds = Array.from(selectedTopics);
-      const queryParams = topicIds.length > 0
-        ? `?topics=${topicIds.join(",")}`
-        : "";
+      const queryParams =
+        topicIds.length > 0 ? `?topics=${topicIds.join(",")}` : "";
 
-      const response = await fetch(`${API_BASE_URL}/api/openai/math-problem${queryParams}`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/openai/math-problem${queryParams}`,
+      );
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "Unknown error");
@@ -317,16 +322,18 @@ export default function MathLearningPlatform() {
       const fullProblem = data.problem || "No problem generated";
       setProblem(fullProblem);
 
-      // Extract equation from the problem
       setExtracting(true);
       try {
-        const extractResponse = await fetch(`${API_BASE_URL}/api/openai/extract-equation`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        const extractResponse = await fetch(
+          `${API_BASE_URL}/api/openai/extract-equation`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ problem: fullProblem }),
           },
-          body: JSON.stringify({ problem: fullProblem }),
-        });
+        );
 
         if (extractResponse.ok) {
           const extractedData = await extractResponse.json();
@@ -334,7 +341,9 @@ export default function MathLearningPlatform() {
             setEquationData({
               equation: extractedData.equation || "",
               substitutedEquation: extractedData.substitutedEquation || "",
-              variables: Array.isArray(extractedData.variables) ? extractedData.variables : [],
+              variables: Array.isArray(extractedData.variables)
+                ? extractedData.variables
+                : [],
             });
           }
         } else {
@@ -342,7 +351,6 @@ export default function MathLearningPlatform() {
         }
       } catch (extractErr) {
         console.error("Error extracting equation:", extractErr);
-        // Don't show error for extraction failures, just continue without equation
       } finally {
         setExtracting(false);
       }
@@ -379,7 +387,6 @@ export default function MathLearningPlatform() {
     alert("File saved successfully!");
   };
 
-  // Assignment Tab Functions
   const createAssignment = () => {
     if (assignmentName.trim()) {
       const newAssignment: Assignment = {
@@ -599,7 +606,6 @@ export default function MathLearningPlatform() {
             </>
           )}
 
-          {/* Answer Section */}
           <ThemedView style={styles.answerSection}>
             <ThemedText style={styles.answerLabel}>Your Answer:</ThemedText>
             <textarea
@@ -623,6 +629,19 @@ export default function MathLearningPlatform() {
                 {practiceFeedback === "submitted" ? "Submitted" : "Canceled"}
               </ThemedText>
             )}
+
+            {currentHint && (
+              <div style={styles.hintBox}>
+                <div style={styles.hintHeader}>
+                  <span style={styles.hintTitle}>Hint {hintLevel}/3</span>
+                  <button onClick={resetHints} style={styles.closeHintButton}>
+                    X
+                  </button>
+                </div>
+                <p style={styles.hintText}>{currentHint}</p>
+              </div>
+            )}
+
             <div style={styles.answerButtons}>
               <button
                 onClick={() => {
@@ -647,11 +666,21 @@ export default function MathLearningPlatform() {
                 <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
               </button>
               <button
-                onClick={() => setShowHint(!showHint)}
-                style={styles.hintButton}
+                onClick={handleGetHint}
+                style={{
+                  ...styles.hintButton,
+                  ...(loadingHint || hintLevel >= 3
+                    ? styles.buttonDisabled
+                    : {}),
+                }}
+                disabled={loadingHint || hintLevel >= 3}
               >
                 <ThemedText style={styles.buttonText}>
-                  {showHint ? "Hide Hint" : "Get Hint"}
+                  {loadingHint
+                    ? "Loading..."
+                    : hintLevel >= 3
+                      ? "No More Hints"
+                      : `Get Hint${hintLevel > 0 ? ` (${hintLevel}/3)` : ""}`}
                 </ThemedText>
               </button>
             </div>
@@ -664,8 +693,8 @@ export default function MathLearningPlatform() {
                 }
               >
                 {answerCorrect
-                  ? "✓ Correct! Great job!"
-                  : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
+                  ? "Correct! Great job!"
+                  : `Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
               </ThemedText>
             )}
           </ThemedView>
@@ -833,14 +862,13 @@ export default function MathLearningPlatform() {
   };
 
   const renderAssignmentDetail = () => {
-    // Simplified version - full implementation would include problem management UI
     return (
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <button
           onClick={() => setSelectedAssignment(null)}
           style={styles.backButton}
         >
-          ← Back
+          Back
         </button>
         <ThemedText type="title">{selectedAssignment!.name}</ThemedText>
         <ThemedText style={styles.subheading}>
@@ -926,10 +954,7 @@ export default function MathLearningPlatform() {
                           ...answerFeedback,
                           [item.id]: "canceled",
                         });
-                        setStudentAnswers({
-                          ...studentAnswers,
-                          [item.id]: "",
-                        });
+                        setStudentAnswers({ ...studentAnswers, [item.id]: "" });
                       }}
                       style={styles.cancelAnswerButton}
                     >
@@ -1395,13 +1420,35 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "rgba(255, 149, 0, 0.1)",
     borderRadius: 8,
     padding: 16,
-    marginTop: 12,
+    marginTop: 16,
+    marginBottom: 16,
     border: "1px solid rgba(255, 149, 0, 0.3)",
+  },
+  hintHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  hintTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  closeHintButton: {
+    backgroundColor: "transparent",
+    border: "none",
+    fontSize: 18,
+    color: "#6b7280",
+    cursor: "pointer",
+    padding: 4,
+    lineHeight: 1,
   },
   hintText: {
     fontSize: 14,
     color: "#1f2937",
-    lineHeight: 1.5,
+    lineHeight: 1.6,
+    margin: 0,
   },
   cancelButtonText: {
     color: "#6b7280",
