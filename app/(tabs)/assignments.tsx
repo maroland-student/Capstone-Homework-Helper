@@ -91,12 +91,14 @@ export default function MathLearningPlatform() {
   const [stepFeedbackText, setStepFeedbackText] = useState<string | null>(null);
   const [stepFeedbackCorrect, setStepFeedbackCorrect] = useState<boolean | null>(null);
   const [stepAttemptsByIndex, setStepAttemptsByIndex] = useState<Record<number, number>>({});
+  
 
   // Hint state
   const [currentHint, setCurrentHint] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState<number>(0);
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
+  const [showCheatSheet, setShowCheatSheet] = useState(false);
 
   // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
@@ -811,6 +813,7 @@ export default function MathLearningPlatform() {
                 <ThemedText style={styles.loadingText}>Loading steps…</ThemedText>
               ) : stepError ? (
                 <ThemedText style={styles.inputErrorText}>{stepError}</ThemedText>
+
               ) : stepData && stepData.steps.length > 0 ? (
                 <>
                   <ThemedText style={styles.stepMeta}>
@@ -851,6 +854,13 @@ export default function MathLearningPlatform() {
                 ? "Your Step Result:"
                 : "Your Answer:"}
             </ThemedText>
+
+            {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length && (
+              <ThemedText style={styles.stepInstruction}>
+                {stepData.steps[currentStepIndex]?.instruction}
+              </ThemedText>
+            )}
+
             <ThemedText style={styles.inputHint}>
               {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
                 ? "Tip: Type the equation after doing this step. Example: '2x = 10' or 'x + 5 = 15'"
@@ -875,6 +885,30 @@ export default function MathLearningPlatform() {
                 (stepData && stepData.steps.length > 0 && currentStepIndex >= stepData.steps.length && answerCorrect === true) || false
               }
             />
+
+            {role === "teacher" && (
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end"}}>
+                <button type="button"
+                  onClick={() => setShowCheatSheet((v) => !v)}
+                  style={styles.debugLink} >
+                  
+
+                  {showCheatSheet ? "Hide (Demo)" : "Show (Demo)"}
+                  </button>
+              </div>
+            )}
+
+            {role === "teacher" && showCheatSheet && stepData && stepData.steps.length > 0 && (
+              <div style={styles.debugBox}>
+                <div style={styles.debugLine}>
+
+
+                  <span style={styles.debugLabel}> Expected : </span>
+                  <span style={styles.debugSingle}> {stepData.steps[currentStepIndex]?.checkpoint} </span>
+                </div>
+              </div>
+            )}
+
             {practiceFeedback && (
               <ThemedText
                 style={
