@@ -1,11 +1,8 @@
 jest.mock('openai', () => {
+  const mockCreate = jest.fn();
   return {
     OpenAI: jest.fn().mockImplementation(() => ({
-      chat: {
-        completions: {
-          create: jest.fn(),
-        },
-      },
+      chat: { completions: { create: mockCreate } },
     })),
   };
 });
@@ -38,18 +35,12 @@ import { OpenAIHandler } from '../openAiUtility';
 process.env.EXPO_PUBLIC_OPENAI_API_KEY = 'test-key';
 process.env.EXPO_PUBLIC_OPENAI_ALLOW_BROWSER = 'true';
 
+
 const mockOpenAI = require('openai');
-let mockCreate: jest.Mock;
+const mockCreate = (mockOpenAI.OpenAI as jest.Mock)()?.chat?.completions?.create ?? jest.fn();
 
 beforeEach(() => {
-  mockCreate = jest.fn();
-  mockOpenAI.OpenAI.mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: mockCreate,
-      },
-    },
-  }));
+  mockCreate.mockClear();
 });
 
 describe('generateStepCheckpoints', () => {
