@@ -1,7 +1,6 @@
 import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
-import { validateEquationSyntax, validateEquationTemplate } from "@/utilities/equationValidator";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -23,8 +22,7 @@ const ThemedView = ({ children, style }: any) => (
 );
 
 const LaTeXRenderer = ({ equation, style }: any) => (
-  <div style={{ padding: 16, fontFamily: "monospace", fontSize: 18,
-        overflowX: "auto", whiteSpace: "pre", WebkitOverflowScrolling: "touch", ...style }}>
+  <div style={{ padding: 16, fontFamily: "monospace", fontSize: 18, ...style }}>
     {equation}
   </div>
 );
@@ -52,11 +50,6 @@ type StudentSubmission = {
   score?: number;
 };
 
-type StepCheckpoint = {
-  instruction: string;
-  checkpoint: string;
-};
-
 export default function MathLearningPlatform() {
   const { selectedTopics } = useSubjects();
   const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
@@ -77,30 +70,11 @@ export default function MathLearningPlatform() {
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
 
-  // Checkpoint/Step-by-step state
-  const [stepData, setStepData] = useState<{
-    targetVariable: string;
-    startEquation: string;
-    steps: StepCheckpoint[];
-    finalAnswer: string;
-  } | null>(null);
-  const [stepLoading, setStepLoading] = useState(false);
-  const [stepError, setStepError] = useState<string | null>(null);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [lastCorrectStepIndex, setLastCorrectStepIndex] = useState(-1);
-  const [stepFeedbackText, setStepFeedbackText] = useState<string | null>(null);
-  const [stepFeedbackCorrect, setStepFeedbackCorrect] = useState<boolean | null>(null);
-  const [stepAttemptsByIndex, setStepAttemptsByIndex] = useState<Record<number, number>>({});
-  
-
-  // Hint state
   const [currentHint, setCurrentHint] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState<number>(0);
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
-  const [showCheatSheet, setShowCheatSheet] = useState(false);
 
-  // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
@@ -248,9 +222,12 @@ export default function MathLearningPlatform() {
         setCurrentHint(hintResponse.hint);
         setHintLevel(hintResponse.level);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to get hint:", error);
-      setCurrentHint("Unable to generate hint. Please try again.");
+      setCurrentHint(
+        `Error: ${error.message || "Unable to generate hint. Please check console for details."}`,
+      );
+      setHintLevel(hintGeneratorRef.current.getCurrentLevel());
     } finally {
       setLoadingHint(false);
     }
@@ -294,24 +271,9 @@ export default function MathLearningPlatform() {
       if (extractResponse.ok) {
         const extractedData = await extractResponse.json();
         if (extractedData.equation) {
-          // Validate extracted equation is mathematically correct
-          const eq = extractedData.equation || "";
-          const subEq = extractedData.substitutedEquation || "";
-          
-          const syntaxCheck = validateEquationSyntax(subEq);
-          const templateCheck = validateEquationTemplate(eq, subEq);
-          
-          if (!syntaxCheck.isValid || !templateCheck.isValid) {
-            console.warn("Extracted equation failed validation:", {
-              syntaxErrors: syntaxCheck.errors,
-              templateErrors: templateCheck.errors,
-            });
-            // Still set it, but log the warnings
-          }
-          
           setEquationData({
-            equation: eq,
-            substitutedEquation: subEq,
+            equation: extractedData.equation || "",
+            substitutedEquation: extractedData.substitutedEquation || "",
             variables: Array.isArray(extractedData.variables)
               ? extractedData.variables
               : [],
@@ -379,23 +341,9 @@ export default function MathLearningPlatform() {
         if (extractResponse.ok) {
           const extractedData = await extractResponse.json();
           if (extractedData.equation) {
-            // Validate extracted equation is mathematically correct
-            const eq = extractedData.equation || "";
-            const subEq = extractedData.substitutedEquation || "";
-            
-            const syntaxCheck = validateEquationSyntax(subEq);
-            const templateCheck = validateEquationTemplate(eq, subEq);
-            
-            if (!syntaxCheck.isValid || !templateCheck.isValid) {
-              console.warn("Extracted equation failed validation:", {
-                syntaxErrors: syntaxCheck.errors,
-                templateErrors: templateCheck.errors,
-              });
-            }
-            
             setEquationData({
-              equation: eq,
-              substitutedEquation: subEq,
+              equation: extractedData.equation || "",
+              substitutedEquation: extractedData.substitutedEquation || "",
               variables: Array.isArray(extractedData.variables)
                 ? extractedData.variables
                 : [],
@@ -439,148 +387,7 @@ export default function MathLearningPlatform() {
     link.click();
     URL.revokeObjectURL(url);
 
-    alert("✓ File saved successfully!");
-  };
-
-  useEffect(() => {
-    const substitutedEquation = equationData?.substitutedEquation?.trim();
-    if (!problem || !substitutedEquation) {
-      setStepData(null);
-      setStepError(null);
-      setStepLoading(false);
-      setCurrentStepIndex(0);
-      setLastCorrectStepIndex(-1);
-      setStepFeedbackText(null);
-      setStepFeedbackCorrect(null);
-      setStepAttemptsByIndex({});
-      return;
-    }
-
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        setStepLoading(true);
-        setStepError(null);
-        setStepData(null);
-        setCurrentStepIndex(0);
-        setLastCorrectStepIndex(-1);
-        setStepFeedbackText(null);
-        setStepFeedbackCorrect(null);
-        setStepAttemptsByIndex({});
-
-        const resp = await fetch(`${API_BASE_URL}/api/openai/step-checkpoints`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ problem, substitutedEquation }),
-        });
-
-        if (!resp.ok) {
-          const t = await resp.text().catch(() => "");
-          throw new Error(t || `HTTP ${resp.status}`);
-        }
-
-        const data = await resp.json();
-        if (cancelled) return;
-
-        const steps: StepCheckpoint[] = Array.isArray(data?.steps)
-          ? data.steps
-              .filter((s: any) => s && typeof s.instruction === "string" && typeof s.checkpoint === "string")
-              .map((s: any) => ({ instruction: s.instruction, checkpoint: s.checkpoint }))
-          : [];
-
-        const finalAnswer =
-          typeof data?.finalAnswer === "string" ? data.finalAnswer : "";
-
-
-        console.log("[checkpoints] target:", data?.targetVariable, "final:", finalAnswer, "steps:", steps);
-
-        setStepData({
-          targetVariable: typeof data?.targetVariable === "string" ? data.targetVariable : "x",
-          startEquation: typeof data?.startEquation === "string" ? data.startEquation : substitutedEquation,
-          steps,
-          finalAnswer,
-        });
-      } catch (e: any) {
-        if (!cancelled) {
-          setStepError(e?.message || "Failed to load step checkpoints.");
-          setStepData(null);
-        }
-      } finally {
-        if (!cancelled) setStepLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [problem, equationData?.substitutedEquation]);
-
-  const submitStepAttempt = async () => {
-    if (!stepData || !stepData.steps?.length) return;
-    if (currentStepIndex >= stepData.steps.length) return;
-    if (!practiceAnswer.trim()) return;
-
-    const step = stepData.steps[currentStepIndex];
-    const attemptNumber = (stepAttemptsByIndex[currentStepIndex] ?? 0) + 1;
-    setStepAttemptsByIndex({ ...stepAttemptsByIndex, [currentStepIndex]: attemptNumber });
-    setStepFeedbackText(null);
-    setStepFeedbackCorrect(null);
-    setPracticeFeedback(null);
-
-    try {
-      const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startEquation: stepData.startEquation,
-          targetVariable: stepData.targetVariable,
-          stepInstruction: step.instruction,
-          expectedCheckpoint: step.checkpoint,
-          studentInput: practiceAnswer,
-        }),
-      });
-
-      if (!resp.ok) {
-        const t = await resp.text().catch(() => "");
-        throw new Error(t || `HTTP ${resp.status}`);
-      }
-
-      const data = await resp.json();
-      const correct = Boolean(data?.correct);
-      const feedback = typeof data?.feedback === "string" ? data.feedback : (correct ? "Correct." : "Incorrect.");
-
-      if (correct) {
-        setStepFeedbackCorrect(true);
-        setStepFeedbackText(feedback);
-        setLastCorrectStepIndex(currentStepIndex);
-        setPracticeAnswer("");
-        setPracticeFeedback("submitted");
-
-        const next = currentStepIndex + 1;
-        if (next >= stepData.steps.length) {
-          setCurrentStepIndex(stepData.steps.length);
-          if (stepData.finalAnswer) {
-            setStepFeedbackText(`${feedback} Finished. Final answer: ${stepData.finalAnswer}`);
-          }
-          // All steps complete - disable further step submissions
-        } else {
-          setCurrentStepIndex(next);
-        }
-      } else {
-        const rollbackTo = Math.max(lastCorrectStepIndex, 0);
-        setStepFeedbackCorrect(false);
-        setStepFeedbackText(`${feedback} Checkpoint: returning to step ${rollbackTo + 1}.`);
-        setCurrentStepIndex(rollbackTo);
-        setPracticeAnswer("");
-        setPracticeFeedback("submitted");
-      }
-    } catch (e: any) {
-      setStepFeedbackCorrect(false);
-      setStepFeedbackText(e?.message || "Failed to grade this step.");
-      setPracticeFeedback("submitted");
-    }
+    alert("File saved successfully!");
   };
 
   const createAssignment = () => {
@@ -693,7 +500,7 @@ export default function MathLearningPlatform() {
   };
 
   const renderPracticeTab = () => (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto", paddingBottom: 100 }}>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Equation Practice</ThemedText>
       </ThemedView>
@@ -802,113 +609,18 @@ export default function MathLearningPlatform() {
             </>
           )}
 
-          {/* Step-by-step (checkpoints) uses the existing answer box below */}
-          {equationData?.substitutedEquation && (
-            <ThemedView style={styles.stepSection}>
-              <ThemedText type="subtitle" style={styles.stepTitle}>
-                Step-by-step (checkpoints)
-              </ThemedText>
-
-              {stepLoading ? (
-                <ThemedText style={styles.loadingText}>Loading steps…</ThemedText>
-              ) : stepError ? (
-                <ThemedText style={styles.inputErrorText}>{stepError}</ThemedText>
-
-              ) : stepData && stepData.steps.length > 0 ? (
-                <>
-                  <ThemedText style={styles.stepMeta}>
-                    Step {Math.min(currentStepIndex + 1, stepData.steps.length)} of {stepData.steps.length}
-                  </ThemedText>
-
-                  {currentStepIndex >= stepData.steps.length && (
-                    <ThemedText style={styles.feedbackCorrect}>
-                      ✓ Completed all steps.{stepData.finalAnswer ? ` Final answer: ${stepData.finalAnswer}` : ""}
-                    </ThemedText>
-                  )}
-
-                  {stepFeedbackText && (
-                    <ThemedText
-                      style={
-                        stepFeedbackCorrect === true
-                          ? styles.feedbackCorrect
-                          : styles.feedbackIncorrect
-                      }
-                    >
-                      {stepFeedbackText}
-                    </ThemedText>
-                  )}
-
-                  {currentStepIndex < stepData.steps.length && (
-                    <ThemedText style={styles.stepAttempts}>
-                      Attempts on this step: {stepAttemptsByIndex[currentStepIndex] ?? 0}
-                    </ThemedText>
-                  )}
-                </>
-              ) : null}
-            </ThemedView>
-          )}
-
           <ThemedView style={styles.answerSection}>
-            <ThemedText style={styles.answerLabel}>
-              {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
-                ? "Your Step Result:"
-                : "Your Answer:"}
-            </ThemedText>
-
-            {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length && (
-              <ThemedText style={styles.stepInstruction}>
-                {stepData.steps[currentStepIndex]?.instruction}
-              </ThemedText>
-            )}
-
-            <ThemedText style={styles.inputHint}>
-              {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
-                ? "Tip: Type the equation after doing this step. Example: '2x = 10' or 'x + 5 = 15'"
-                : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
-            </ThemedText>
+            <ThemedText style={styles.answerLabel}>Your Answer:</ThemedText>
             <textarea
               style={styles.answerInput}
-              placeholder={
-                stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
-                  ? "Example: 2x = 10 or x + 5 = 15"
-                  : "Example: 42 or x = 42"
-              }
+              placeholder="Enter your answer here..."
               value={practiceAnswer}
               onChange={(e) => {
                 setPracticeAnswer(e.target.value);
                 setPracticeFeedback(null);
-                setStepFeedbackText(null);
-                setStepFeedbackCorrect(null);
               }}
               rows={3}
-              disabled={
-                (stepData && stepData.steps.length > 0 && currentStepIndex >= stepData.steps.length && answerCorrect === true) || false
-              }
             />
-
-            {role === "teacher" && (
-              <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end"}}>
-                <button type="button"
-                  onClick={() => setShowCheatSheet((v) => !v)}
-                  style={styles.debugLink} >
-                  
-
-                  {showCheatSheet ? "Hide (Demo)" : "Show (Demo)"}
-                  </button>
-              </div>
-            )}
-
-            {role === "teacher" && showCheatSheet && stepData && stepData.steps.length > 0 && (
-              <div style={styles.debugBox}>
-                <div style={styles.debugLine}>
-
-
-                  <span style={styles.debugLabel}> Expected : </span>
-                  <span style={styles.debugSingle}> {stepData.steps[currentStepIndex]?.checkpoint} </span>
-                </div>
-              </div>
-            )}
-
             {practiceFeedback && (
               <ThemedText
                 style={
@@ -936,20 +648,12 @@ export default function MathLearningPlatform() {
             <div style={styles.answerButtons}>
               <button
                 onClick={() => {
-                  if (stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length) {
-                    submitStepAttempt();
-                    return;
-                  }
-
                   const isCorrect = checkAnswer(practiceAnswer);
                   setAnswerCorrect(isCorrect);
                   setPracticeFeedback("submitted");
                 }}
                 style={styles.submitAnswerButton}
-                disabled={
-                  !practiceAnswer.trim() ||
-                  (stepData && stepData.steps.length > 0 && currentStepIndex >= stepData.steps.length && answerCorrect === true) || false
-                }
+                disabled={!practiceAnswer.trim()}
               >
                 <ThemedText style={styles.buttonText}>Submit</ThemedText>
               </button>
@@ -959,8 +663,6 @@ export default function MathLearningPlatform() {
                   setPracticeAnswer("");
                   setAnswerCorrect(null);
                   setCorrectAnswer(null);
-                  setStepFeedbackText(null);
-                  setStepFeedbackCorrect(null);
                 }}
                 style={styles.cancelAnswerButton}
               >
@@ -985,36 +687,19 @@ export default function MathLearningPlatform() {
                 </ThemedText>
               </button>
             </div>
-            {practiceFeedback === "submitted" &&
-              !(stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length) &&
-              answerCorrect !== null && (
-                <ThemedText
-                  style={
-                    answerCorrect
-                      ? styles.feedbackCorrect
-                      : styles.feedbackIncorrect
-                  }
-                >
-                  {answerCorrect
-                    ? "✓ Correct! Great job!"
-                    : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
-                </ThemedText>
-              )}
-            {practiceFeedback === "submitted" &&
-              !(stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length) &&
-              answerCorrect !== null && (
-                <ThemedText
-                  style={
-                    answerCorrect
-                      ? styles.feedbackCorrect
-                      : styles.feedbackIncorrect
-                  }
-                >
-                  {answerCorrect
-                    ? "✓ Correct! Great job!"
-                    : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
-                </ThemedText>
-              )}
+            {practiceFeedback === "submitted" && answerCorrect !== null && (
+              <ThemedText
+                style={
+                  answerCorrect
+                    ? styles.feedbackCorrect
+                    : styles.feedbackIncorrect
+                }
+              >
+                {answerCorrect
+                  ? "Correct! Great job!"
+                  : `Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
+              </ThemedText>
+            )}
           </ThemedView>
         </>
       ) : (
@@ -1123,7 +808,7 @@ export default function MathLearningPlatform() {
                   </ThemedText>
                   {role === "student" && isCompleted && submission && (
                     <ThemedText style={styles.completedLabel}>
-                      ✓ Completed - Score: {submission.score}/
+                      Completed - Score: {submission.score}/
                       {item.problems.length}
                     </ThemedText>
                   )}
@@ -1291,10 +976,16 @@ export default function MathLearningPlatform() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <div style={styles.tabContainer}>
-        
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f0f9ff",
+        padding: 24,
+        paddingBottom: 200,
+        overflowY: "auto",
+      }}
+    >
+      <div style={styles.tabContainer}>
         <button
           onClick={() => setActiveTab("practice")}
           style={{
@@ -1328,15 +1019,12 @@ export default function MathLearningPlatform() {
           </span>
         </button>
       </div>
-      </div>
 
-      <div style={styles.scrollContainer}>
-        <div style={{marginTop: 24 }}>
+      <div style={{ marginTop: 24 }}>
         {activeTab === "practice"
           ? renderPracticeTab()
           : renderAssignmentsTab()}
       </div>
-    </div>
     </div>
   );
 }
@@ -1349,10 +1037,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     paddingBottom: 8,
     maxWidth: 900,
     margin: "0 auto",
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-    backgroundColor: "#f0f9ff",
   },
   tab: {
     padding: "12px 24px",
@@ -1396,7 +1080,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontFamily: "inherit",
   },
   inputErrorText: {
-    display: "block",
     color: "#FF3B30",
     fontSize: 14,
     marginTop: 4,
@@ -1453,7 +1136,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     animation: "spin 1s linear infinite",
   },
   loadingText: {
-    display: "block",
     fontSize: 14,
     opacity: 0.7,
   },
@@ -1512,34 +1194,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 14,
     opacity: 0.7,
     textAlign: "center",
-  },
-  stepSection: {
-    backgroundColor: "rgba(0, 122, 255, 0.06)",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    border: "1px solid rgba(0, 122, 255, 0.18)",
-  },
-  stepTitle: {
-    display: "block",
-    marginBottom: 8,
-  },
-  stepMeta: {
-    display: "block",
-    fontSize: 13,
-    opacity: 0.75,
-    marginBottom: 8,
-  },
-  stepInstruction: {
-    display: "block",
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  stepAttempts: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 8,
   },
   roleToggle: {
     display: "flex",
@@ -1710,19 +1364,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: "600",
     fontSize: 16,
   },
+  answerSection: {
+    marginTop: 24,
+  },
   answerLabel: {
     fontSize: 14,
     fontWeight: "600",
     color: "#374151",
     marginTop: 12,
     marginBottom: 8,
-  },
-  inputHint: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontStyle: "italic",
-    marginBottom: 6,
-    lineHeight: 1.4,
   },
   answerInput: {
     width: "100%",
@@ -1738,11 +1388,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   answerButtons: {
     display: "flex",
-    gap: 12,
+    gap: 8,
     marginTop: 8,
+    flexWrap: "wrap" as "wrap",
   },
   submitAnswerButton: {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 120,
     backgroundColor: "#34C759",
     borderRadius: 8,
     padding: 12,
@@ -1750,7 +1402,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
   },
   cancelAnswerButton: {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 120,
     backgroundColor: "#f3f4f6",
     borderRadius: 8,
     padding: 12,
@@ -1773,9 +1426,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 16,
     marginBottom: 16,
     border: "1px solid rgba(255, 149, 0, 0.3)",
-    maxHeight: 220,
-    overflowY: "auto",
-    WebkitOverflowScrolling: "touch",
   },
   hintHeader: {
     display: "flex",
@@ -1802,8 +1452,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#1f2937",
     lineHeight: 1.6,
     margin: 0,
-    whiteSpace: "pre-wrap" as const,
-    wordBreak: "break-word" as const,
   },
   cancelButtonText: {
     color: "#6b7280",
@@ -1823,7 +1471,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 8,
   },
   feedbackCorrect: {
-    display: "block",
     color: "#16a34a",
     fontSize: 16,
     fontWeight: "600",
@@ -1834,7 +1481,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: "center" as "center",
   },
   feedbackIncorrect: {
-    display: "block",
     color: "#dc2626",
     fontSize: 16,
     fontWeight: "600",
@@ -1844,32 +1490,4 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     textAlign: "center" as "center",
   },
-  page: {
-    height: "100vh",
-    backgroundColor: "#f0f9ff",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-
-  header: {
-    padding: 24, 
-    paddingBottom: 0,
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 10,
-    backgroundColor: "#f0f9ff",
-  },
-  scrollContainer: {
-    flex: 1,
-    overflowY: "auto",
-    overflowX: "auto",
-    padding: 24,
-    paddingTop: 0,
-    WebkitOverflowScrolling: "touch",
-    overscrollBehavior: "contain",
-    boxSizing: "border-box",
-  },
-
-  
 };
