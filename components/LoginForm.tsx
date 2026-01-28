@@ -62,19 +62,16 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
 
     try {
       setRecoveryLoading(true);
-      // add function to recover email tmmr
-      // call better auth post request to recover email
       console.log('Email recovery requested for:', recoveryData);
-      
-      // add api call to recover email
+
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       if (Platform.OS === 'web') {
         window.alert('Account information sent to your registered email address');
       } else {
         Alert.alert('Success', 'Account information sent to your registered email address');
       }
-      
+
       setShowForgotEmailModal(false);
       setRecoveryData({ firstName: '', lastName: '', phoneNumber: '' });
     } catch (error) {
@@ -133,14 +130,13 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     try {
       setResetLoading(true);
       console.log('Password reset requested for:', resetEmail);
-      
-      // Use the new OTP-based password reset
+
       const { emailOtp } = await import('@/lib/auth-client');
       const { data, error } = await emailOtp.sendVerificationOtp({
         email: resetEmail,
         type: 'forget-password',
       });
-      
+
       if (error) {
         if (Platform.OS === 'web') {
           window.alert(`Error: ${error.message || 'Failed to send password reset OTP'}`);
@@ -148,7 +144,6 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           Alert.alert('Error', error.message || 'Failed to send password reset OTP');
         }
       } else {
-        // Show the password reset form with OTP input
         setShowForgotPasswordModal(false);
         setShowPasswordReset(true);
       }
@@ -176,7 +171,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         'Email and password are required',
         'Please enter both email and password'
       );
-      
+
       if (Platform.OS === 'web') {
         window.alert(`Error: ${error.userMessage}`);
       } else {
@@ -192,10 +187,10 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         password: formData.password,
         rememberMe: true
       });
-      
+
       console.log('Login response - data:', data);
       console.log('Login response - error:', error);
-      
+
       if (data) {
         console.log('Login successful:', data);
         setHasExplicitlyLoggedIn(true);
@@ -203,7 +198,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       } else if (error) {
         const appError = parseAuthError(error);
         console.error(`[${appError.type}] Login error:`, appError.message);
-        
+
         if (Platform.OS === 'web') {
           window.alert(`Error: ${appError.userMessage}`);
         } else {
@@ -216,7 +211,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
           'No response from server',
           'Invalid email or password'
         );
-        
+
         if (Platform.OS === 'web') {
           window.alert(`Error: ${error.userMessage}`);
         } else {
@@ -226,7 +221,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
     } catch (error: any) {
       const appError = parseNetworkError(error);
       console.error(`[${appError.type}] Login error:`, appError.message);
-      
+
       if (Platform.OS === 'web') {
         window.alert(`Error: ${appError.userMessage}`);
       } else {
@@ -260,72 +255,76 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
-      
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={formData.email}
-          onChangeText={(text) => setFormData({ ...formData, email: text })}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={formData.password}
-          onChangeText={(text) => setFormData({ ...formData, password: text })}
-          secureTextEntry
-        />
-        
-        <View style={styles.forgotContainer}>
-          <TouchableOpacity onPress={handleForgotEmail}>
-            <Text style={styles.forgotLink}>Forgot Email?</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleForgotPassword}>
-            <Text style={styles.forgotLink}>Forgot Password?</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
+      <View style={styles.contentContainer}>
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to continue</Text>
 
-        <TouchableOpacity 
-          style={styles.otpLink} 
-          onPress={() => setShowOTPLogin(true)}
-        >
-          <Text style={styles.otpLinkText}>Sign In with OTP</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.helpContainer}>
-          <Text style={styles.helpText}>
-            Having trouble signing in? Try using OTP or make sure you're using the correct email and password.
-          </Text>
-        </View>
-        
-        {onSignupPress && (
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={onSignupPress}>
-              <Text style={styles.signupLink}>Sign up</Text>
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#86868b"
+            value={formData.email}
+            onChangeText={(text) => setFormData({ ...formData, email: text })}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#86868b"
+            value={formData.password}
+            onChangeText={(text) => setFormData({ ...formData, password: text })}
+            secureTextEntry
+          />
+
+          <View style={styles.forgotContainer}>
+            <TouchableOpacity onPress={handleForgotEmail}>
+              <Text style={styles.forgotLink}>Forgot Email?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleForgotPassword}>
+              <Text style={styles.forgotLink}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
-        )}
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.otpButton}
+            onPress={() => setShowOTPLogin(true)}
+          >
+            <Text style={styles.otpButtonText}>Sign In with OTP</Text>
+          </TouchableOpacity>
+
+          <View style={styles.helpContainer}>
+            <Text style={styles.helpText}>
+              Having trouble signing in? Try using OTP or make sure you're using the correct email and password.
+            </Text>
+          </View>
+
+          {onSignupPress && (
+            <View style={styles.signupContainer}>
+              <Text style={styles.signupText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={onSignupPress}>
+                <Text style={styles.signupLink}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
 
-      {}
+      {/* Forgot Password Modal */}
       <Modal
         visible={showForgotPasswordModal}
         transparent={true}
@@ -338,17 +337,18 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
             <Text style={styles.modalSubtitle}>
               Enter the email address associated with your account and we'll send you a verification code to reset your password.
             </Text>
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Enter your email address"
+              placeholderTextColor="#86868b"
               value={resetEmail}
               onChangeText={setResetEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               autoFocus
             />
-            
+
             <View style={styles.modalButtonContainer}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalCancelButton]}
@@ -356,7 +356,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               >
                 <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalSubmitButton, resetLoading && styles.modalButtonDisabled]}
                 onPress={handlePasswordReset}
@@ -365,7 +365,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
                 {resetLoading ? (
                   <ActivityIndicator color="white" size="small" />
                 ) : (
-                  <Text style={styles.modalSubmitButtonText}>Send Reset Code</Text>
+                  <Text style={styles.modalSubmitButtonText}>Send Code</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -373,7 +373,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
         </View>
       </Modal>
 
-      {}
+      {/* Forgot Email Modal */}
       <Modal
         visible={showForgotEmailModal}
         transparent={true}
@@ -382,36 +382,39 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Recover Email Address</Text>
+            <Text style={styles.modalTitle}>Recover Email</Text>
             <Text style={styles.modalSubtitle}>
-              Enter your account details below and we'll send your email address to your registered contact information.
+              Enter your account details and we'll send your email address to your registered contact information.
             </Text>
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="First Name"
+              placeholderTextColor="#86868b"
               value={recoveryData.firstName}
               onChangeText={(text) => setRecoveryData({ ...recoveryData, firstName: text })}
               autoCapitalize="words"
               autoFocus
             />
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Last Name"
+              placeholderTextColor="#86868b"
               value={recoveryData.lastName}
               onChangeText={(text) => setRecoveryData({ ...recoveryData, lastName: text })}
               autoCapitalize="words"
             />
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Phone Number"
+              placeholderTextColor="#86868b"
               value={recoveryData.phoneNumber}
               onChangeText={(text) => setRecoveryData({ ...recoveryData, phoneNumber: text })}
               keyboardType="phone-pad"
             />
-            
+
             <View style={styles.modalButtonContainer}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalCancelButton]}
@@ -419,7 +422,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
               >
                 <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalSubmitButton, recoveryLoading && styles.modalButtonDisabled]}
                 onPress={handleEmailRecovery}
@@ -428,7 +431,7 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
                 {recoveryLoading ? (
                   <ActivityIndicator color="white" size="small" />
                 ) : (
-                  <Text style={styles.modalSubmitButtonText}>Recover Email</Text>
+                  <Text style={styles.modalSubmitButtonText}>Recover</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -442,93 +445,129 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fbfbfd',
+  },
+  contentContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
     padding: 20,
+    maxWidth: 500,
+    width: '100%',
+    alignSelf: 'center',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 34,
+    fontWeight: '700',
     marginBottom: 8,
-    color: '#333',
+    color: '#1d1d1f',
+    letterSpacing: -0.68,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 17,
+    color: '#86868b',
     marginBottom: 40,
+    fontWeight: '400',
+    letterSpacing: -0.17,
   },
   form: {
     width: '100%',
-    maxWidth: 300,
   },
   input: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    backgroundColor: '#f5f5f7',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    fontSize: 17,
+    color: '#1d1d1f',
+    borderWidth: 0,
+    fontFamily: Platform.select({
+      ios: 'SF Pro Text',
+      android: 'sans-serif',
+      default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
+    }),
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: '#a78bfa',
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#a78bfa',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.4,
   },
   buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  otpLink: {
-    padding: 10,
-    alignSelf: 'center',
-    marginBottom: 15,
-  },
-  otpLinkText: {
-    color: '#007AFF',
-    fontSize: 14,
+    color: '#ffffff',
+    fontSize: 17,
     fontWeight: '500',
+    letterSpacing: -0.17,
+  },
+  otpButton: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#d2d2d7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  otpButtonText: {
+    color: '#1d1d1f',
+    fontSize: 17,
+    fontWeight: '500',
+    letterSpacing: -0.17,
   },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 24,
   },
   signupText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#86868b',
+    fontWeight: '400',
   },
   signupLink: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '600',
+    fontSize: 15,
+    color: '#a78bfa',
+    fontWeight: '500',
   },
   forgotContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
-    paddingHorizontal: 5,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
   forgotLink: {
-    fontSize: 14,
-    color: '#007AFF',
+    fontSize: 13,
+    color: '#a78bfa',
     fontWeight: '500',
   },
   helpContainer: {
-    marginTop: 15,
+    marginTop: 20,
     paddingHorizontal: 10,
+    backgroundColor: '#f5f5f7',
+    padding: 16,
+    borderRadius: 12,
   },
   helpText: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#86868b',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 18,
+    fontWeight: '400',
   },
   modalOverlay: {
     flex: 1,
@@ -538,73 +577,84 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     padding: 24,
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 420,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowRadius: 8,
     elevation: 5,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#1d1d1f',
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: -0.44,
   },
   modalSubtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: '#86868b',
     marginBottom: 24,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 21,
+    fontWeight: '400',
   },
   modalInput: {
-    backgroundColor: '#f8f9fa',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    fontSize: 16,
+    backgroundColor: '#f5f5f7',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    fontSize: 17,
+    color: '#1d1d1f',
+    borderWidth: 0,
   },
   modalButtonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
+    marginTop: 8,
   },
   modalButton: {
     flex: 1,
-    padding: 15,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   modalCancelButton: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#d2d2d7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   modalSubmitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#a78bfa',
+    shadowColor: '#a78bfa',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
   modalButtonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.4,
   },
   modalCancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#1d1d1f',
+    fontSize: 17,
+    fontWeight: '500',
+    letterSpacing: -0.17,
   },
   modalSubmitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '500',
+    letterSpacing: -0.17,
   },
 });
