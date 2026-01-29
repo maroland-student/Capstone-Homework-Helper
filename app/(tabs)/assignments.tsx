@@ -57,6 +57,16 @@ type StepCheckpoint = {
   checkpoint: string;
 };
 
+type CompletedStep = {
+  stepIndex: number;
+  instruction: string;
+  correct: string;
+  response?: string;
+  timestamp: string;
+}
+
+
+
 export default function MathLearningPlatform() {
   const { selectedTopics } = useSubjects();
   const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
@@ -99,6 +109,9 @@ export default function MathLearningPlatform() {
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState<CompletedStep[]>([]);
+  const [expandedStep, setExpandedStep] = useState<Record<number, boolean>>({});
+
 
   // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
@@ -453,6 +466,9 @@ export default function MathLearningPlatform() {
       setStepFeedbackText(null);
       setStepFeedbackCorrect(null);
       setStepAttemptsByIndex({});
+      setCompletedSteps([]);
+      setExpandedStep({});
+
       return;
     }
 
@@ -468,6 +484,8 @@ export default function MathLearningPlatform() {
         setStepFeedbackText(null);
         setStepFeedbackCorrect(null);
         setStepAttemptsByIndex({});
+        setCompletedSteps([]);
+        setExpandedStep({});
 
         const resp = await fetch(`${API_BASE_URL}/api/openai/step-checkpoints`, {
           method: "POST",
@@ -517,6 +535,12 @@ export default function MathLearningPlatform() {
     };
   }, [problem, equationData?.substitutedEquation]);
 
+
+  // testing state actually working/updating before UI build
+  useEffect(() => {
+    console.log(" Steps :", completedSteps);
+  }, [completedSteps])
+
   const submitStepAttempt = async () => {
     if (!stepData || !stepData.steps?.length) return;
     if (currentStepIndex >= stepData.steps.length) return;
@@ -552,6 +576,60 @@ export default function MathLearningPlatform() {
       const feedback = typeof data?.feedback === "string" ? data.feedback : (correct ? "Correct." : "Incorrect.");
 
       if (correct) {
+
+        const timestamp = new Date().toLocaleString();
+
+        const stepRecord: CompletedStep = {
+          stepIndex: currentStepIndex,
+          instruction: step.instruction,
+          correct: practiceAnswer,
+          response: feedback,
+          timestamp: timestamp,
+
+        }
+
+        setCompletedSteps((prevStep) => {
+          const nextStep: CompletedStep[] =[];
+        
+
+        // I'm just adding this copying loop in to avoid any duplicates in case 
+          // there's an accidental redo of the logging
+        let i = 0;
+        for (i; i < prevStep.length; i++) {
+
+          const prevRecord = prevStep[i];
+          const prevRecordIndex = prevRecord.stepIndex;
+
+          let sameStep = false;
+          if (prevRecordIndex === currentStepIndex){
+            sameStep = true;
+          }
+
+          if (!sameStep) {
+            nextStep.push(prevRecord);
+          }
+    }
+          nextStep.push(stepRecord);
+
+
+          nextStep.sort((i, j) => {
+
+            if (i.stepIndex < j.stepIndex) {
+              return -1;
+            }
+            if (i.stepIndex > j.stepIndex) {
+              return 1;
+            }
+
+
+            return 0;
+          })
+
+          return nextStep;
+
+
+      })
+    
         setStepFeedbackCorrect(true);
         setStepFeedbackText(feedback);
         setLastCorrectStepIndex(currentStepIndex);
