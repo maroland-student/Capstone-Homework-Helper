@@ -1,9 +1,11 @@
 
+export const EQUATION_PREFIX = "y="; 
+
 // A function to remove unsafe characters from user input
 export function removeUnsafeCharacters(input: string): string {
     // Define a regex pattern to match unsafe characters
     const unsafePattern = /[<>\/\\'"]/g;
-    
+
     // Replace unsafe characters with an empty string
     return input.replace(unsafePattern, '');
 }
@@ -14,7 +16,7 @@ export function balanceEquation(equation: string): string {
     const [left, right] = equation.split('=');
     if (!right) {
         // Missing equals sign, add 'y='
-        return `y=${left}`;
+        return EQUATION_PREFIX + left;
     }
 
     return equation; // Equation is already balanced
