@@ -12,6 +12,16 @@ export interface ValidationResult {
 }
 
 /**
+ * Removes whitespaces and normalizes equation input
+ */
+function normalizeEquationInput(raw: string): string {
+  return raw
+    .replace(/\s+/g, '')        // Remove all whitespace  
+    .replace(/\u2212/g, '-')    // Normalize minus sign
+    .replace(/\u00D7/g, '*');   // Normalize multiplication sign
+}
+
+/**
  * Validates that the equation template and substituted equation are different
  */
 export function validateEquationTemplate(
@@ -76,15 +86,18 @@ export function validateEquationSyntax(equation: string): ValidationResult {
     return { isValid: false, errors, warnings };
   }
 
+  // Normalize equation syntax
+  const normalized = normalizeEquationInput(equation);
+
   // Check for basic mathematical structure
-  const hasEquals = equation.includes('=');
+  const hasEquals = normalized.includes('=');
   if (!hasEquals) {
     errors.push('Equation must contain an equals sign (=)');
   }
 
   // Check for balanced parentheses
-  const openParens = (equation.match(/\(/g) || []).length;
-  const closeParens = (equation.match(/\)/g) || []).length;
+  const openParens = (normalized.match(/\(/g) || []).length;
+  const closeParens = (normalized.match(/\)/g) || []).length;
   if (openParens !== closeParens) {
     errors.push('Unbalanced parentheses in equation');
   }
@@ -97,8 +110,8 @@ export function validateEquationSyntax(equation: string): ValidationResult {
   }
 
   // Check for invalid characters (basic check)
-  const invalidChars = /[^a-zA-Z0-9\s+\-*/=().,≤≥<>]/;
-  if (invalidChars.test(equation)) {
+  const invalidChars = /[^a-zA-Z0-9+\-*/=().,≤≥<>]/;
+  if (invalidChars.test(normalized)) {
     warnings.push('Equation contains potentially invalid characters');
   }
 
