@@ -1,8 +1,8 @@
 import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import {
-  validateEquationSyntax,
-  validateEquationTemplate,
+    validateEquationSyntax,
+    validateEquationTemplate,
 } from "@/utilities/equationValidator";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -94,6 +94,7 @@ export default function StudyPage() {
   const [stepAttemptsByIndex, setStepAttemptsByIndex] = useState<
     Record<number, number>
   >({});
+  const [checkingBypass, setCheckingBypass] = useState(false);
 
   // Hint state
   const [currentHint, setCurrentHint] = useState<string | null>(null);
@@ -167,6 +168,101 @@ export default function StudyPage() {
       console.error("Error normalizing answer:", e);
     }
     return null;
+  };
+
+  const parseFinalAnswerValue = (finalAnswer: string): number | null => {
+    if (!finalAnswer?.trim()) return null;
+    const trimmed = finalAnswer.trim();
+    const parts = trimmed.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return normalizeAnswer(trimmed);
+  };
+
+  const parseCheckpointValue = (checkpoint: string): number | null => {
+    if (!checkpoint?.trim()) return null;
+    const parts = checkpoint.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return normalizeAnswer(checkpoint.trim());
+  };
+
+  const parseUserAnswerValue = (userInput: string): number | null => {
+    if (!userInput?.trim()) return null;
+    const asNumber = normalizeAnswer(userInput);
+    if (asNumber !== null) return asNumber;
+    const parts = userInput.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+
+  const isFinalAnswerMatch = (userInput: string): boolean => {
+    if (!stepData?.finalAnswer?.trim() || !userInput.trim()) return false;
+    const expected = parseFinalAnswerValue(stepData.finalAnswer);
+    const actual = parseUserAnswerValue(userInput);
+    if (expected === null || actual === null) return false;
+    return Math.abs(expected - actual) < 0.01;
+  };
+
+  const isFinalCheckpointMatch = (userInput: string): boolean => {
+    if (!stepData?.steps?.length || !userInput.trim()) return false;
+    const lastStep = stepData.steps[stepData.steps.length - 1];
+    const expected = parseCheckpointValue(lastStep.checkpoint);
+    const actual = parseUserAnswerValue(userInput);
+    if (expected === null || actual === null) return false;
+    return Math.abs(expected - actual) < 0.01;
+  };
+
+  const normalizeCommaSeparatedEquations = (s: string): string[] => {
+    return s
+      .split(",")
+      .map((p) => p.trim().replace(/\s+/g, ""))
+      .filter(Boolean)
+      .sort();
+  };
+
+  const isCommaSeparatedCheckpointMatch = (
+    expectedCheckpoint: string,
+    studentInput: string,
+  ): boolean => {
+    if (!expectedCheckpoint.includes(",") || !studentInput.includes(","))
+      return false;
+    const a = normalizeCommaSeparatedEquations(expectedCheckpoint);
+    const b = normalizeCommaSeparatedEquations(studentInput);
+    if (a.length !== b.length) return false;
+    return a.every((eq, i) => eq === b[i]);
+  };
+
+  const tryBypassByGradingFinalStep = async (
+    studentInput: string,
+  ): Promise<boolean> => {
+    if (!stepData?.steps?.length || !studentInput.trim()) return false;
+    const lastStep = stepData.steps[stepData.steps.length - 1];
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startEquation: stepData.startEquation,
+          targetVariable: stepData.targetVariable,
+          stepInstruction: lastStep.instruction,
+          expectedCheckpoint: lastStep.checkpoint,
+          studentInput,
+        }),
+      });
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      return Boolean(data?.correct);
+    } catch {
+      return false;
+    }
   };
 
   const checkAnswer = (studentAnswer: string): boolean => {
@@ -531,6 +627,26 @@ export default function StudyPage() {
     setStepFeedbackCorrect(null);
     setPracticeFeedback(null);
 
+    if (isCommaSeparatedCheckpointMatch(step.checkpoint, practiceAnswer)) {
+      setStepFeedbackCorrect(true);
+      setStepFeedbackText("Correct.");
+      setLastCorrectStepIndex(currentStepIndex);
+      setPracticeAnswer("");
+      setPracticeFeedback("submitted");
+      const next = currentStepIndex + 1;
+      if (next >= stepData.steps.length) {
+        setCurrentStepIndex(stepData.steps.length);
+        if (stepData.finalAnswer) {
+          setStepFeedbackText(
+            `Correct. Finished. Final answer: ${stepData.finalAnswer}`,
+          );
+        }
+      } else {
+        setCurrentStepIndex(next);
+      }
+      return;
+    }
+
     try {
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
@@ -847,7 +963,7 @@ export default function StudyPage() {
                   {stepData &&
                   stepData.steps.length > 0 &&
                   currentStepIndex < stepData.steps.length
-                    ? "Tip: Type the equation after doing this step. Example: '2x = 10' or 'x + 5 = 15'"
+                    ? "Tip: Type the equation after this step (e.g. '2x = 10'), or enter the final answer to skip ahead."
                     : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
                 </ThemedText>
                 <textarea
@@ -907,12 +1023,41 @@ export default function StudyPage() {
 
                 <div style={styles.answerButtons}>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         stepData &&
                         stepData.steps.length > 0 &&
                         currentStepIndex < stepData.steps.length
                       ) {
+                        if (
+                          isFinalAnswerMatch(practiceAnswer) ||
+                          isFinalCheckpointMatch(practiceAnswer)
+                        ) {
+                          setStepFeedbackCorrect(true);
+                          setStepFeedbackText(
+                            `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
+                          );
+                          setCurrentStepIndex(stepData.steps.length);
+                          setPracticeAnswer("");
+                          setPracticeFeedback("submitted");
+                          return;
+                        }
+                        setCheckingBypass(true);
+                        setStepFeedbackText(null);
+                        setStepFeedbackCorrect(null);
+                        const bypassOk =
+                          await tryBypassByGradingFinalStep(practiceAnswer);
+                        setCheckingBypass(false);
+                        if (bypassOk) {
+                          setStepFeedbackCorrect(true);
+                          setStepFeedbackText(
+                            `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
+                          );
+                          setCurrentStepIndex(stepData.steps.length);
+                          setPracticeAnswer("");
+                          setPracticeFeedback("submitted");
+                          return;
+                        }
                         submitStepAttempt();
                         return;
                       }
@@ -924,6 +1069,7 @@ export default function StudyPage() {
                     style={styles.submitAnswerButton}
                     disabled={
                       !practiceAnswer.trim() ||
+                      checkingBypass ||
                       (stepData &&
                         stepData.steps.length > 0 &&
                         currentStepIndex >= stepData.steps.length &&
