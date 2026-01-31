@@ -22,6 +22,29 @@ function normalizeEquationInput(raw: string): string {
 }
 
 /**
+ * Validates that parentheses are balanced and properly ordered.
+ */
+function validateBalancedParentheses(equationNoSpaces: string, errors: string[]) {
+  let balance = 0;
+
+  for (const c of equationNoSpaces) {
+    if (c === '(') {
+      balance++;
+    } else if (c === ')') {
+      balance--;
+      if (balance < 0) {
+        errors.push('Unmatched closing parenthesis found');
+        return;
+      }
+    }
+  }
+
+  if (balance !== 0) {
+    errors.push('Unmatched opening parenthesis found');
+  }
+}
+
+/**
  * Validates that the equation template and substituted equation are different
  */
 export function validateEquationTemplate(
@@ -84,10 +107,14 @@ export function validateEquationSyntax(equation: string): ValidationResult {
   if (!equation || equation.trim() === '') {
     errors.push('Equation string is empty');
     return { isValid: false, errors, warnings };
-  }
+  } 
 
   // Normalize equation syntax
   const normalized = normalizeEquationInput(equation);
+
+  // Check for balanced parentheses (balanced + correct order)
+  validateBalancedParentheses(normalized, errors);
+
 
   // Check for basic mathematical structure
   const hasEquals = normalized.includes('=');
@@ -95,17 +122,10 @@ export function validateEquationSyntax(equation: string): ValidationResult {
     errors.push('Equation must contain an equals sign (=)');
   }
 
-  // Check for balanced parentheses
-  const openParens = (normalized.match(/\(/g) || []).length;
-  const closeParens = (normalized.match(/\)/g) || []).length;
-  if (openParens !== closeParens) {
-    errors.push('Unbalanced parentheses in equation');
-  }
-
   // Check for valid mathematical operators
   const validOperators = /[+\-*/=<>≤≥]/;
-  const hasOperators = validOperators.test(equation);
-  if (!hasOperators && !equation.includes('=')) {
+  const hasOperators = validOperators.test(normalized);
+  if (!hasOperators && !normalized.includes('=')) {
     warnings.push('Equation may be missing mathematical operators');
   }
 
