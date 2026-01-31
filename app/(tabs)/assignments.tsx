@@ -926,6 +926,102 @@ export default function MathLearningPlatform() {
             </ThemedView>
           )}
 
+
+          {completedSteps.length > 0 && (
+
+
+            <ThemedView style={styles.completedStepsContainer}>
+              <ThemedText style={styles.completedStepsHeader}>
+                 Previous Work:
+              </ThemedText>
+            
+
+            <ThemedText style={styles.completedStepsTitle}>
+              These Steps Are Correct. Expand to see more Details...
+            </ThemedText>
+
+
+            {completedSteps.map((stepItem) => {
+              const expanded = expandedStep[stepItem.stepIndex] === true;
+
+              return (
+                <div key={stepItem.stepIndex} style={styles.completedRow}>
+                  <div style={styles.completedTopRow}>  
+
+
+
+                    <ThemedText style={styles.completedStepBigLabel}>
+                      Step {stepItem.stepIndex + 1}
+                    </ThemedText>
+                    <ThemedText style={styles.completedStepSmallLabel}>
+                      Correct: {stepItem.correct}
+                    </ThemedText>
+                    <ThemedText style={styles.completedStepSmallLabel}>
+                      Completed At: {stepItem.timestamp}
+                    </ThemedText>
+
+                </div>
+
+                    <button type="button"
+                            style={styles.completedButton}
+                            onClick={() => {
+
+                              setExpandedStep((prev) =>{
+                                const next: Record<number, boolean> = {}
+
+                                for (const i in prev) {
+                                  next[Number(i)] = prev[Number(i)];
+                                }
+
+                                next[stepItem.stepIndex] = !prev[stepItem.stepIndex];
+                                return next;
+                              })
+
+                              
+                            }}
+
+                          >
+                            {expanded ? 'Hide' : 'View'}
+                          </button>
+                       
+                      
+          {/* Expanded part! */}
+
+                      {expanded && (
+                        <div style={styles.expandedMainContainer}>
+                          
+                          <ThemedText style={styles.expandedHeader}>
+                            Instruction: 
+                          </ThemedText>
+                          <ThemedText style={styles.expandedText}>
+                            {stepItem.instruction}
+                          </ThemedText>
+
+                        
+                        {stepItem.response && (
+                          <>
+
+                          <ThemedText style={styles.expandedLabel}>
+                            Feedback: 
+                          </ThemedText>
+                          <ThemedText style={styles.expandedText}>
+                            {stepItem.response}
+                          </ThemedText>
+                          
+                      </>
+
+                      )}
+
+
+                  </div>
+                )}
+             </div>
+              )
+            })}
+    </ThemedView>
+          )}
+          {/* Continue answer box for the student ^^^ */}
+
           <ThemedView style={styles.answerSection}>
             <ThemedText style={styles.answerLabel}>
               {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
@@ -1948,6 +2044,140 @@ const styles: { [key: string]: React.CSSProperties } = {
     overscrollBehavior: "contain",
     boxSizing: "border-box",
   },
+
+  completedStepsContainer: {
+    backgroundColor: "#0F172A",
+    padding: 16, 
+    marginBottom: 16,
+    border: "1px solid rgba(10,126, 164,0.35)",
+    borderRadius: 14,
+
+    boxShadow: "0 6px 8px rgba(0,0,0,0.08)",
+  
+
+    maxHeight: 300,
+    overflowY: "auto",
+    WebkitOverflowScrolling: 'touch',
+
+  },
+  completedStepsHeader: {
+    display: "block",
+    fontSize: 24,
+    lineHeight: "18px",
+    fontWeight: "600",
+    marginBottom: 5,
+    color: "#34C759",
+
+
+  },
+  completedStepsTitle: {
+    display: "block",
+    fontSize: 12,
+    fontStyle: "italic",
+    opacity: 0.9,
+
+    marginBottom: 12,
+    color: "#ffffff",
+
+
+  },
+  completedRow: {
+    backgroundColor:"#0F172A",
+    borderRadius: 12,
+    border: "2.5px solid rgba(10,126, 164,0.35)",
+    padding: 12,
+    marginBottom: 10,
+  
+    boxShadow: "0 6px 8px rgba(0,0,0,0.1)",
+
+  },
+  completedTopRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 3,
+
+  },
+  completedStepSmallLabel: {
+    display: "block",
+    fontSize: 12,
+    opacity: 0.9,
+    color: "#ffffff",
+    marginBottom: 4,
+
+  },
+  completedStepBigLabel: {
+    display: "block",
+    fontSize: 16,
+    color: "#ffffff",
+    fontWeight: "600",
+  
+    marginBottom: 2,
+
+  },
+  completedButton: {
+
+    marginTop: 8,
+    borderRadius: 12,
+    border: "2px solid rgba(10,126, 164,0.35)",
+
+    padding: "8px 12px",
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: "#34C759",
+    fontSize: 12,
+    fontWeight: "500",
+
+  
+   
+  },
+
+
+
+
+  expandedMainContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: "1px solid rgba(10,126, 164,0.2)",
+
+    maxHeight: 120,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingRight: 10,
+
+
+  },
+  expandedHeader: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 5,
+    color: "#ffffff",
+
+  },
+  expandedLabel: {
+    display: "block",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 5,
+    color: "#ffffff",
+
+  },
+  expandedText: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 12,
+
+    color: "#ffffff",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    
+
+  },
+
+
+
 
   
 };
