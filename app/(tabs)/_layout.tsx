@@ -1,9 +1,9 @@
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Tabs } from 'expo-router';
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Tabs } from "expo-router";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
   const backgroundColor = Colors[colorScheme].background;
 
   return (
@@ -13,11 +13,12 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor,
           borderTopWidth: 1,
-          borderTopColor: colorScheme === 'dark' ? '#2A2A2A' : '#E5E5EA',
+          borderTopColor: colorScheme === "dark" ? "#2A2A2A" : "#E5E5EA",
         },
         tabBarActiveTintColor: Colors[colorScheme].tint,
         tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
-      }}>
+      }}
+    >
       {/* <Tabs.Screen
         name="index"
         options={{
@@ -27,7 +28,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="welcome-dashboard"
         options={{
-          title: 'Home',
+          title: "Home",
         }}
       />
       {/* <Tabs.Screen
@@ -39,25 +40,31 @@ export default function TabLayout() {
       <Tabs.Screen
         name="equations"
         options={{
-          title: 'Equations',
+          title: "Equations",
+        }}
+      />
+      <Tabs.Screen
+        name="study"
+        options={{
+          title: "Study",
         }}
       />
       <Tabs.Screen
         name="subjects"
         options={{
-          title: 'Subjects',
+          title: "Subjects",
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: "Settings",
         }}
       />
       <Tabs.Screen
         name="assignments"
         options={{
-          title: 'Assignments',
+          title: "Assignments",
         }}
       />
     </Tabs>
