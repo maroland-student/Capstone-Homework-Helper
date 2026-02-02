@@ -95,6 +95,16 @@ export default function StudyPage() {
     Record<number, number>
   >({});
   const [checkingBypass, setCheckingBypass] = useState(false);
+  const [mistakesCollected, setMistakesCollected] = useState<
+    Array<{
+      stepInstruction: string;
+      expectedCheckpoint: string;
+      studentInput: string;
+      feedback: string;
+    }>
+  >([]);
+  const [mistakeSummary, setMistakeSummary] = useState<string | null>(null);
+  const [mistakeSummaryLoading, setMistakeSummaryLoading] = useState(false);
 
   // Hint state
   const [currentHint, setCurrentHint] = useState<string | null>(null);
@@ -346,6 +356,9 @@ export default function StudyPage() {
     setAnswerCorrect(null);
     setCorrectAnswer(null);
     resetHints();
+    setMistakesCollected([]);
+    setMistakeSummary(null);
+    setMistakeSummaryLoading(false);
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
@@ -412,6 +425,9 @@ export default function StudyPage() {
       setAnswerCorrect(null);
       setCorrectAnswer(null);
       resetHints();
+      setMistakesCollected([]);
+      setMistakeSummary(null);
+      setMistakeSummaryLoading(false);
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -694,6 +710,14 @@ export default function StudyPage() {
           setCurrentStepIndex(next);
         }
       } else {
+        setMistakesCollected((prev) =>
+          prev.concat({
+            stepInstruction: step.instruction,
+            expectedCheckpoint: step.checkpoint,
+            studentInput: practiceAnswer,
+            feedback,
+          }),
+        );
         const rollbackTo = Math.max(lastCorrectStepIndex, 0);
         setStepFeedbackCorrect(false);
         setStepFeedbackText(
@@ -709,6 +733,46 @@ export default function StudyPage() {
       setPracticeFeedback("submitted");
     }
   };
+
+  useEffect(() => {
+    if (
+      !problem ||
+      !stepData ||
+      currentStepIndex < stepData.steps.length ||
+      mistakesCollected.length === 0 ||
+      mistakeSummary !== null
+    ) {
+      return;
+    }
+    let cancelled = false;
+    setMistakeSummaryLoading(true);
+    fetch(`${API_BASE_URL}/api/openai/mistake-summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ problem, mistakes: mistakesCollected }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load summary"))))
+      .then((data) => {
+        if (!cancelled && typeof data?.summary === "string") {
+          setMistakeSummary(data.summary);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMistakeSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setMistakeSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    problem,
+    stepData,
+    currentStepIndex,
+    mistakesCollected.length,
+    mistakeSummary,
+  ]);
 
   // Landing page view
   if (!showStudyInterface) {
@@ -937,6 +1001,27 @@ export default function StudyPage() {
                           {stepAttemptsByIndex[currentStepIndex] ?? 0}
                         </ThemedText>
                       )}
+
+                      {currentStepIndex >= stepData.steps.length &&
+                        mistakesCollected.length > 0 && (
+                          <div style={styles.mistakeSummaryBox}>
+                            <ThemedText
+                              type="subtitle"
+                              style={styles.mistakeSummaryTitle}
+                            >
+                              Summary of mistakes
+                            </ThemedText>
+                            {mistakeSummaryLoading ? (
+                              <ThemedText style={styles.mistakeSummaryText}>
+                                Loading…
+                              </ThemedText>
+                            ) : mistakeSummary ? (
+                              <p style={styles.mistakeSummaryText}>
+                                {mistakeSummary}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
                     </>
                   ) : null}
                 </ThemedView>
@@ -1362,6 +1447,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 10,
     color: "#86868b",
     fontWeight: "400",
+  },
+  mistakeSummaryBox: {
+    marginTop: 20,
+    padding: 18,
+    backgroundColor: "#faf5ff",
+    borderRadius: 12,
+    borderLeft: "4px solid #a78bfa",
+  },
+  mistakeSummaryTitle: {
+    display: "block",
+    marginBottom: 10,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1d1d1f",
+  },
+  mistakeSummaryText: {
+    fontSize: 15,
+    lineHeight: 1.6,
+    color: "#1d1d1f",
+    margin: 0,
+    whiteSpace: "pre-wrap" as const,
+    wordBreak: "break-word" as const,
   },
   answerLabel: {
     fontSize: 15,

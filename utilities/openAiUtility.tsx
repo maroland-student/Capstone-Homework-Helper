@@ -807,6 +807,66 @@ If incorrect, feedback should be short and helpful, and should NOT reveal every 
     }
   }
 
+  public static async generateMistakeSummary(
+    problem: string,
+    mistakes: {
+      stepInstruction: string;
+      expectedCheckpoint: string;
+      studentInput: string;
+      feedback: string;
+    }[],
+  ): Promise<string> {
+    if (!mistakes.length) return "";
+    try {
+      const list = mistakes
+        .map(
+          (m, i) =>
+            `${i + 1}. Step: "${m.stepInstruction}". Expected: "${m.expectedCheckpoint}". Student wrote: "${m.studentInput}". Grader feedback: ${m.feedback}`,
+        )
+        .join("\n");
+      const problemContext = problem.trim();
+      const prompt = `You are a supportive math tutor. A student just finished the following math problem (they got there in the end). While working through it, they made the mistakes listed below where the grader marked them incorrect.
+
+THE EXACT PROBLEM THE STUDENT SOLVED:
+"""
+${problemContext}
+"""
+
+MISTAKES THEY MADE (step, expected result, what they wrote, grader feedback):
+${list}
+
+Write a short, friendly summary (2–4 paragraphs) for the student that:
+1. Uses the context of this exact problem—reference the specific setup, numbers, or type of problem when explaining why these mistakes might have happened (e.g. "In this problem you had to…", "When you were solving for x here…").
+2. Explains common themes in why these mistakes occurred (e.g. sign errors, wrong operation, order of operations, misreading the step) in light of this problem.
+3. Gives one or two concrete tips tied to this problem type to avoid similar mistakes next time.
+4. Keeps tone encouraging and growth-oriented; do not list the mistakes again in full.
+
+Return plain text only, no JSON or markdown headers.`;
+      const response = await ai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a supportive math tutor. Return only the summary text, no JSON or labels.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.4,
+      });
+      const summary =
+        response.choices[0]?.message?.content?.trim() ||
+        "Good job finishing the problem. Review the step feedback above to see where things went wrong.";
+      return summary;
+    } catch (err) {
+      ToggleLogs.log(
+        "Error generating mistake summary: " + err,
+        LogLevel.CRITICAL,
+      );
+      return "";
+    }
+  }
+
   /**
    * Validates that step checkpoints are mathematically correct transformations
    * Uses AI to verify each step is a valid transformation from the previous step
