@@ -38,3 +38,20 @@ export function checkIsParensClosed(input: string): boolean {
 
     return count === 0;
 }
+
+export function closeParens(equation: string): string {
+    //Check null input
+    if(equation == null || equation.length === 0){
+        return equation;
+    }
+    
+    //Split equation into left and right parts if applicable
+    var [left, right] = equation.split('=');
+    if(left && right){
+        left = closeParens(left);
+        right = closeParens(right);
+        return left + '=' + right;
+    }
+
+    
+}
