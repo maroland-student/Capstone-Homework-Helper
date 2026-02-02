@@ -22,6 +22,16 @@ type GradeStepBody = {
     studentInput: string;
 };
 
+type MistakeSummaryBody = {
+    problem: string;
+    mistakes: Array<{
+        stepInstruction: string;
+        expectedCheckpoint: string;
+        studentInput: string;
+        feedback: string;
+    }>;
+};
+
 export function handles(req: IncomingMessage): boolean {
   if (req == undefined || req.url == undefined) return false;
   return req.url.startsWith("/api/openai");
@@ -203,6 +213,60 @@ export async function handle(
             });
         }
 
+        return;
+    }
+
+  if (req.url?.startsWith("/api/openai/mistake-summary")) {
+        ToggleLogs.log("Handling mistake summary request..", LogLevel.INFO);
+        if (req.method !== "POST") {
+            UrlUtils.sendJson(res, 405, {
+                error: "Method Not Allowed",
+                message: "Only POST requests are allowed for this endpoint.",
+            });
+            return;
+        }
+        const body = (await UrlUtils.getBody(req)) as MistakeSummaryBody;
+        if (
+            !body ||
+            typeof body !== "object" ||
+            typeof body.problem !== "string" ||
+            !Array.isArray(body.mistakes)
+        ) {
+            UrlUtils.sendJson(res, 400, {
+                error: "Bad Request",
+                message:
+                    'Request body must contain "problem" (string) and "mistakes" (array of { stepInstruction, expectedCheckpoint, studentInput, feedback }).',
+            });
+            return;
+        }
+        const valid = body.mistakes.every(
+            (m) =>
+                m &&
+                typeof m.stepInstruction === "string" &&
+                typeof m.expectedCheckpoint === "string" &&
+                typeof m.studentInput === "string" &&
+                typeof m.feedback === "string",
+        );
+        if (!valid) {
+            UrlUtils.sendJson(res, 400, {
+                error: "Bad Request",
+                message: "Each mistake must have stepInstruction, expectedCheckpoint, studentInput, and feedback as strings.",
+            });
+            return;
+        }
+        try {
+            const summary = await OpenAIHandler.generateMistakeSummary(
+                body.problem,
+                body.mistakes,
+            );
+            UrlUtils.sendJson(res, 200, { summary });
+        } catch (err: any) {
+            ToggleLogs.log(`Error generating mistake summary: ${err}`, LogLevel.CRITICAL);
+            UrlUtils.sendJson(res, 500, {
+                error: "Internal Server Error",
+                message: "An error occurred while generating the mistake summary.",
+            });
+        }
         return;
     }
 

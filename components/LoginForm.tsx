@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Modal,
   Platform,
   StyleSheet,
@@ -255,72 +256,100 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.contentContainer}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+      {/* Decorative circles */}
+      <View style={styles.decorativeCircle1} />
+      <View style={styles.decorativeCircle2} />
+      <View style={styles.decorativeCircle3} />
+      <View style={styles.decorativeCircle4} />
+      <View style={styles.decorativeCircle5} />
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#86868b"
-            value={formData.email}
-            onChangeText={(text) => setFormData({ ...formData, email: text })}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+      <View style={styles.contentWrapper}>
+        {/* Left side - Brand section */}
+        <View style={styles.brandSection}>
+          <Text style={styles.brandTitle}>Ai Homework Helper</Text>
+          <Text style={styles.brandSubtitle}>Welcome to the app</Text>
+        </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#86868b"
-            value={formData.password}
-            onChangeText={(text) => setFormData({ ...formData, password: text })}
-            secureTextEntry
-          />
+        {/* Right side - Login card */}
+        <View style={styles.loginCard}>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>USER LOGIN</Text>
+            <Text style={styles.cardSubtitle}>Welcome to the website</Text>
 
-          <View style={styles.forgotContainer}>
-            <TouchableOpacity onPress={handleForgotEmail}>
-              <Text style={styles.forgotLink}>Forgot Email?</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleForgotPassword}>
-              <Text style={styles.forgotLink}>Forgot Password?</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <View style={styles.inputIconContainer}>
+                  <Text style={styles.inputIcon}>👤</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Username"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={formData.email}
+                  onChangeText={(text) => setFormData({ ...formData, email: text })}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <View style={styles.inputIconContainer}>
+                  <Text style={styles.inputIcon}>🔒</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={formData.password}
+                  onChangeText={(text) => setFormData({ ...formData, password: text })}
+                  secureTextEntry
+                />
+              </View>
 
-          <TouchableOpacity
-            style={styles.otpButton}
-            onPress={() => setShowOTPLogin(true)}
-          >
-            <Text style={styles.otpButtonText}>Sign In with OTP</Text>
-          </TouchableOpacity>
+              <View style={styles.rememberForgotContainer}>
+                <View style={styles.rememberContainer}>
+                  <View style={styles.checkbox} />
+                  <Text style={styles.rememberText}>Remember</Text>
+                </View>
+                <TouchableOpacity onPress={handleForgotPassword}>
+                  <Text style={styles.forgotLink}>Forgot password ?</Text>
+                </TouchableOpacity>
+              </View>
 
-          <View style={styles.helpContainer}>
-            <Text style={styles.helpText}>
-              Having trouble signing in? Try using OTP or make sure you're using the correct email and password.
-            </Text>
-          </View>
+              <TouchableOpacity
+                style={[styles.loginButton, loading && styles.buttonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                <View style={styles.loginButtonGradient}>
+                  {loading ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <Text style={styles.loginButtonText}>LOGIN</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
 
-          {onSignupPress && (
-            <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={onSignupPress}>
-                <Text style={styles.signupLink}>Sign up</Text>
+              <TouchableOpacity
+                style={styles.otpButton}
+                onPress={() => setShowOTPLogin(true)}
+              >
+                <Text style={styles.otpButtonText}>Sign In with OTP</Text>
+              </TouchableOpacity>
+
+              {onSignupPress && (
+                <View style={styles.signupContainer}>
+                  <TouchableOpacity onPress={onSignupPress}>
+                    <Text style={styles.signupLink}>Create Account</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity onPress={handleForgotEmail} style={styles.forgotEmailButton}>
+                <Text style={styles.forgotEmailText}>Forgot Email?</Text>
               </TouchableOpacity>
             </View>
-          )}
+          </View>
         </View>
       </View>
 
@@ -442,219 +471,326 @@ export default function LoginForm({ onSignupPress }: LoginFormProps) {
   );
 }
 
+const { width } = Dimensions.get('window');
+const isSmallScreen = width < 768;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fbfbfd',
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#7C3AED',
+    ...(Platform.OS === 'web' && ({
+      backgroundImage: 'linear-gradient(135deg, #6B46C1 0%, #8B5CF6 33%, #A78BFA 66%, #C4B5FD 100%)',
+      minHeight: '100vh',
+      width: '100vw',
+      height: '100vh',
+    } as any)),
   },
-  contentContainer: {
+  decorativeCircle1: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    top: -100,
+    left: -50,
+  },
+  decorativeCircle2: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    top: 100,
+    right: -80,
+  },
+  decorativeCircle3: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    bottom: 200,
+    left: 50,
+  },
+  decorativeCircle4: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    top: 300,
+    left: 200,
+  },
+  decorativeCircle5: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    bottom: 100,
+    right: 150,
+  },
+  contentWrapper: {
     flex: 1,
-    justifyContent: 'center',
+    flexDirection: isSmallScreen ? 'column' : 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
-    maxWidth: 500,
-    width: '100%',
+    zIndex: 1,
+    gap: isSmallScreen ? 20 : 60,
+  },
+  brandSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    marginBottom: isSmallScreen ? 20 : 0,
+    marginRight: isSmallScreen ? 0 : 40,
+  },
+  brandTitle: {
+    fontSize: isSmallScreen ? 32 : 48,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 8,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  brandSubtitle: {
+    fontSize: isSmallScreen ? 14 : 18,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '300',
+    textAlign: 'center',
+  },
+  loginCard: {
+    width: isSmallScreen ? '100%' : 420,
+    maxWidth: 420,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: 'hidden',
     alignSelf: 'center',
   },
-  title: {
-    fontSize: 34,
-    fontWeight: '700',
-    marginBottom: 8,
-    color: '#1d1d1f',
-    letterSpacing: -0.68,
+  cardContent: {
+    padding: 32,
   },
-  subtitle: {
-    fontSize: 17,
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#6B46C1',
+    marginBottom: 4,
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+  cardSubtitle: {
+    fontSize: 13,
     color: '#86868b',
-    marginBottom: 40,
+    marginBottom: 32,
+    textAlign: 'center',
     fontWeight: '400',
-    letterSpacing: -0.17,
   },
   form: {
     width: '100%',
   },
-  input: {
-    backgroundColor: '#f5f5f7',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    fontSize: 17,
-    color: '#1d1d1f',
-    borderWidth: 0,
-    fontFamily: Platform.select({
-      ios: 'SF Pro Text',
-      android: 'sans-serif',
-      default: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
-    }),
-  },
-  button: {
-    backgroundColor: '#a78bfa',
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#a78bfa',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  buttonDisabled: {
-    opacity: 0.4,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '500',
-    letterSpacing: -0.17,
-  },
-  otpButton: {
-    backgroundColor: '#ffffff',
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#d2d2d7',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  otpButtonText: {
-    color: '#1d1d1f',
-    fontSize: 17,
-    fontWeight: '500',
-    letterSpacing: -0.17,
-  },
-  signupContainer: {
+  inputContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
+    overflow: 'hidden',
   },
-  signupText: {
+  inputIconContainer: {
+    width: 50,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(167, 139, 250, 0.2)',
+  },
+  inputIcon: {
+    fontSize: 20,
+  },
+  input: {
+    flex: 1,
+    padding: 15,
     fontSize: 15,
-    color: '#86868b',
-    fontWeight: '400',
+    color: '#1d1d1f',
   },
-  signupLink: {
-    fontSize: 15,
-    color: '#a78bfa',
-    fontWeight: '500',
-  },
-  forgotContainer: {
+  rememberForgotContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    paddingHorizontal: 4,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  rememberContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+    marginRight: 8,
+  },
+  rememberText: {
+    fontSize: 13,
+    color: '#6B46C1',
+    fontWeight: '500',
   },
   forgotLink: {
     fontSize: 13,
-    color: '#a78bfa',
+    color: '#8B5CF6',
     fontWeight: '500',
   },
-  helpContainer: {
-    marginTop: 20,
-    paddingHorizontal: 10,
-    backgroundColor: '#f5f5f7',
-    padding: 16,
+  loginButton: {
     borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  helpText: {
+  loginButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7C3AED',
+    ...(Platform.OS === 'web' && ({
+      backgroundImage: 'linear-gradient(90deg, #7C3AED 0%, #6B21A8 100%)',
+    } as any)),
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  loginButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  otpButton: {
+    backgroundColor: 'transparent',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#A78BFA',
+  },
+  otpButtonText: {
+    color: '#6B46C1',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  signupContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  signupLink: {
+    fontSize: 15,
+    color: '#8B5CF6',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  forgotEmailButton: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  forgotEmailText: {
     fontSize: 13,
-    color: '#86868b',
-    textAlign: 'center',
-    lineHeight: 18,
-    fontWeight: '400',
+    color: '#A78BFA',
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContainer: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 440,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#1d1d1f',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#6B46C1',
     marginBottom: 8,
     textAlign: 'center',
-    letterSpacing: -0.44,
   },
   modalSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#86868b',
     marginBottom: 24,
     textAlign: 'center',
-    lineHeight: 21,
-    fontWeight: '400',
+    lineHeight: 20,
   },
   modalInput: {
-    backgroundColor: '#f5f5f7',
+    backgroundColor: 'rgba(167, 139, 250, 0.1)',
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
-    fontSize: 17,
+    fontSize: 15,
     color: '#1d1d1f',
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
   },
   modalButtonContainer: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     marginTop: 8,
   },
   modalButton: {
     flex: 1,
-    padding: 14,
+    padding: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalCancelButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f5f7',
     borderWidth: 1,
     borderColor: '#d2d2d7',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   modalSubmitButton: {
-    backgroundColor: '#a78bfa',
-    shadowColor: '#a78bfa',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: '#8B5CF6',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
   },
   modalButtonDisabled: {
-    opacity: 0.4,
+    opacity: 0.5,
   },
   modalCancelButtonText: {
     color: '#1d1d1f',
-    fontSize: 17,
-    fontWeight: '500',
-    letterSpacing: -0.17,
+    fontSize: 16,
+    fontWeight: '600',
   },
   modalSubmitButtonText: {
     color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '500',
-    letterSpacing: -0.17,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
