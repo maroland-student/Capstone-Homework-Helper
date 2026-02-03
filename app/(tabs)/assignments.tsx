@@ -2046,13 +2046,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
 
   completedStepsContainer: {
-    backgroundColor: "#0F172A",
+    backgroundColor: "#ffffff",
     padding: 16, 
     marginBottom: 16,
-    border: "1px solid rgba(10,126, 164,0.35)",
+    border: "1px solid rgba(167,139,250,0.18)",
     borderRadius: 14,
 
-    boxShadow: "0 6px 8px rgba(0,0,0,0.08)",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
   
 
     maxHeight: 300,
@@ -2062,55 +2062,57 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   completedStepsHeader: {
     display: "block",
-    fontSize: 24,
-    lineHeight: "18px",
-    fontWeight: "600",
+    fontSize: 20,
+    lineHeight: "24px",
+    fontWeight: "700",
     marginBottom: 5,
-    color: "#34C759",
+    color: "#6B46C1",
 
 
   },
   completedStepsTitle: {
     display: "block",
-    fontSize: 12,
-    fontStyle: "italic",
-    opacity: 0.9,
+    fontSize: 13,
+    fontStyle: "normal",
+    lineHeight: 1.4,
+    color: "#86868b",
+  
 
-    marginBottom: 12,
-    color: "#ffffff",
+    marginBottom: 14,
+
 
 
   },
   completedRow: {
-    backgroundColor:"#0F172A",
-    borderRadius: 12,
-    border: "2.5px solid rgba(10,126, 164,0.35)",
-    padding: 12,
+    backgroundColor:"#faf5ff",
+    borderRadius: 14,
+    border: "2px solid rgba(167,139, 250,0.35)",
+    padding: 14,
     marginBottom: 10,
   
-    boxShadow: "0 6px 8px rgba(0,0,0,0.1)",
+    boxShadow: "0 1px 3px rgba(167,139,250,0.1)",
 
   },
   completedTopRow: {
     display: "flex",
     flexDirection: "column",
     gap: 5,
-    marginBottom: 3,
+    marginBottom: 6,
 
   },
   completedStepSmallLabel: {
     display: "block",
     fontSize: 12,
     opacity: 0.9,
-    color: "#ffffff",
-    marginBottom: 4,
+    color: "#86868b",
+    marginBottom: 2,
 
   },
   completedStepBigLabel: {
     display: "block",
     fontSize: 16,
-    color: "#ffffff",
-    fontWeight: "600",
+    color: "#1d1d1f",
+    fontWeight: "700",
   
     marginBottom: 2,
 
@@ -2119,14 +2121,15 @@ const styles: { [key: string]: React.CSSProperties } = {
 
     marginTop: 8,
     borderRadius: 12,
-    border: "2px solid rgba(10,126, 164,0.35)",
-
+    border: "1.5px solid #A78BFA",
     padding: "8px 12px",
     cursor: "pointer",
-    backgroundColor: "transparent",
-    color: "#34C759",
+    backgroundColor: "#ffffff",
+    color: "#6B46C1",
     fontSize: 12,
     fontWeight: "500",
+    
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
 
   
    
@@ -2138,7 +2141,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   expandedMainContainer: {
     marginTop: 10,
     paddingTop: 10,
-    borderTop: "1px solid rgba(10,126, 164,0.2)",
+    borderTop: "1px solid rgba(167,139, 250,0.2)",
 
     maxHeight: 120,
     overflowY: "auto",
@@ -2152,26 +2155,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 5,
-    color: "#ffffff",
+    color: "#6B46C1",
 
   },
   expandedLabel: {
     display: "block",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
     marginBottom: 5,
-    color: "#ffffff",
+    color: "#6B46C1",
 
   },
   expandedText: {
     display: "block",
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "500",
     marginBottom: 12,
 
-    color: "#ffffff",
+    color: "#1d1d1f",
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
+
+    lineHeight: 1.5,
     
 
   },
