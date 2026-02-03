@@ -42,11 +42,11 @@ export default function Pin({
             <View style={styles.title}>
                 <View style={styles.titleLeft}>
                     <Text style={styles.label}>
-                        Pinned: {pinned?.typeOfInfo ? ` ${pinned.typeOfInfo.toUpperCase()}` : ""}
+                        Pinned Step: {pinned?.typeOfInfo ? ` ${pinned.typeOfInfo.toUpperCase()}` : ""}
                     </Text>
 
                     <Text style={styles.label}>
-                        {pinned?.title ? pinned.title : "No Pins. Press the 'Pin' Button to Pin something :)"}
+                        {pinned?.title ? pinned.title : "Press the 'Pin' Button to Pin something :)"}
                     </Text>
 
                 </View>
@@ -62,11 +62,12 @@ export default function Pin({
 
             </View>
 
-
+    <View style={styles.bodyScroll}>
         <Text style={styles.main}>
             {pinned?.body ? pinned.body : "Pin a Step to Keep it visible while you solve"}
 
             </Text>
+            </View>
 
         </View>
     
@@ -79,6 +80,7 @@ export default function Pin({
 const styles = StyleSheet.create({
 
     container: {
+        width: "100%",
         borderRadius: 24,
         borderWidth: 1,
         borderColor: "rgba(167, 139, 250, 0.35)",
@@ -89,6 +91,8 @@ const styles = StyleSheet.create({
         shadowOffset: {width:0, height: 10},
         shadowRadius: 20,
         elevation: 5,
+
+        maxHeight: 300,
 
         
     },
@@ -109,17 +113,18 @@ const styles = StyleSheet.create({
 
 
     label:{
-        fontSize: 12,
-        fontWeight: "600",
+        fontSize: 7,
+        fontWeight: "400",
         color: "rgba(107, 70, 193, 0.9)",
         marginBottom: 5,
     },
 
 
     main:{
-        padding: 10,
-        fontSize: 14,
+        padding: 8,
+        fontSize: 10,
         color: "#1D1D1F",
+        lineHeight: 14,
 
     },
 
@@ -141,12 +146,16 @@ const styles = StyleSheet.create({
 
     clearButtonText: {
         color: "#7C3AED",
-        fontSize: 16,
+        fontSize: 12,
         fontWeight: "800",
         
 
         lineHeight: 10,
 
+    },
+    bodyScroll: {
+        overflow: "scroll",
+        maxHeight: 220,
     },
 
 

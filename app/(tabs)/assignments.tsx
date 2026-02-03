@@ -2,6 +2,7 @@ import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import { validateEquationSyntax, validateEquationTemplate } from "@/utilities/equationValidator";
 import { useEffect, useRef, useState } from "react";
+import Pin, {PinData} from "@/components/Pin";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -111,6 +112,9 @@ export default function MathLearningPlatform() {
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<CompletedStep[]>([]);
   const [expandedStep, setExpandedStep] = useState<Record<number, boolean>>({});
+  const [pinned, setPinned] = useState<PinData | null>(null);
+
+
 
 
   // Assignment Tab State
@@ -286,6 +290,7 @@ export default function MathLearningPlatform() {
     setPracticeFeedback(null);
     setAnswerCorrect(null);
     setCorrectAnswer(null);
+    setPinned(null);
     resetHints();
 
     const trimmedProblem = userInput.trim();
@@ -353,6 +358,7 @@ export default function MathLearningPlatform() {
       setAnswerCorrect(null);
       setCorrectAnswer(null);
       resetHints();
+      setPinned(null);
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -769,13 +775,20 @@ export default function MathLearningPlatform() {
   const getSubmission = (assignmentId: number) => {
     return submissions.find((s) => s.assignmentId === assignmentId);
   };
+  
 
   const renderPracticeTab = () => (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+
+    <div style={styles.practiceOuterContainer}>
+      <div style={styles.practiceLayout}>
+      <div style={styles.practiceCentralContent}>
+          <div style={styles.pinMain}>
+
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Equation Practice</ThemedText>
       </ThemedView>
 
+    
       <ThemedView style={styles.inputContainer}>
         <ThemedText style={styles.inputLabel}>
           Enter Your Math Problem:
@@ -1030,9 +1043,32 @@ export default function MathLearningPlatform() {
             </ThemedText>
 
             {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length && (
-              <ThemedText style={styles.stepInstruction}>
+
+              <div style={styles.stepInstructionRow}>
+
+                <ThemedText style={styles.stepInstruction}>
                 {stepData.steps[currentStepIndex]?.instruction}
               </ThemedText>
+
+                <button type="button"
+                  style={styles.pinConfirm}
+                  onClick={() => {
+
+                    const instruction = stepData.steps[currentStepIndex]?.instruction || "";
+
+                setPinned({
+                  title: `Step ${currentStepIndex + 1}`,
+                  body: instruction,
+                  typeOfInfo: "step",
+                })
+         }}
+
+        >
+          Pin Step
+        </button>
+
+              </div>
+
             )}
 
             <ThemedText style={styles.inputHint}>
@@ -1095,10 +1131,32 @@ export default function MathLearningPlatform() {
               </ThemedText>
             )}
 
+
+
             {currentHint && (
               <div style={styles.hintBox}>
                 <div style={styles.hintHeader}>
                   <span style={styles.hintTitle}>Hint {hintLevel}/3</span>
+
+                  <div style={styles.hintHeaderButtons}>
+                    <button type="button"
+                      onClick={() => {
+
+                        setPinned({
+                          title: `Hint ${hintLevel}/3`,
+                          body: currentHint,
+                          typeOfInfo: "hint",
+
+                        })
+                    }}
+                        style = {styles.pinHintButton}
+                    >
+                      Pin
+                    </button>
+
+
+                  </div>
+
                   <button onClick={resetHints} style={styles.closeHintButton}>
                     X
                   </button>
@@ -1106,6 +1164,7 @@ export default function MathLearningPlatform() {
                 <p style={styles.hintText}>{currentHint}</p>
               </div>
             )}
+
 
             <div style={styles.answerButtons}>
               <button
@@ -1200,6 +1259,18 @@ export default function MathLearningPlatform() {
         </ThemedView>
       )}
     </div>
+    </div>
+
+    <div style={styles.practiceRightGap}>
+      
+      <Pin pinned={pinned} clear={() => setPinned(null)} />
+      </div>
+    
+  </div>
+  </div>
+
+
+
   );
 
   const renderAssignmentsTab = () => {
@@ -1710,6 +1781,30 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: "600",
     marginBottom: 8,
   },
+  stepInstructionRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 10,
+  },
+  pinConfirm: {
+
+    fontSize: 14,
+    fontWeight: "700",
+
+    
+    borderRadius: 12,
+    border: "1px solid rgba(167, 139, 250, 0.35)",
+    backgroundColor: "1px solid rgba(167, 139, 250, 0.35)",
+    padding: "8px",
+
+
+    alignSelf: "flex-start",
+    cursor: "pointer",
+    color: "#6B46C1",
+
+  },
+
   stepAttempts: {
     fontSize: 12,
     opacity: 0.7,
@@ -1957,6 +2052,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     marginBottom: 12,
   },
+  hintHeaderButtons: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+
+
+  },
   hintTitle: {
     fontSize: 14,
     fontWeight: "600",
@@ -2037,7 +2139,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   scrollContainer: {
     flex: 1,
     overflowY: "auto",
-    overflowX: "auto",
+    overflowX: "hidden",
     padding: 24,
     paddingTop: 0,
     WebkitOverflowScrolling: "touch",
@@ -2175,7 +2277,90 @@ const styles: { [key: string]: React.CSSProperties } = {
     
 
   },
+  pinContainer: {
+    position: "sticky",
+    marginBottom: 15,
 
+
+    top: 15,
+    zIndex: 6, 
+
+  },
+  pinHintButton: {
+
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B46C1",
+
+    border: "1px solid rgba(167,139,250,0.35)",
+    borderRadius: 10,
+    backgroundColor: "1px solid rgba(167,139,250,0.15)",
+    padding: "8px",
+
+    cursor: "pointer",
+
+    
+
+
+  },
+  pinBox: {
+    width: 220,
+    height: 220,
+  },
+
+  pinMain: {
+    minWidth: 0,
+  },
+  practiceLayout: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 900px) 260px",
+    justifyContent: "center",
+    columnGap: 24,
+    alignItems: "start",
+  },
+
+  practiceRightGap: {
+    position: "sticky",
+    top: 120,
+    alignSelf: "start",
+    zIndex: 20,
+
+
+    minWidth: 0,
+    paddingLeft: 90,
+    boxSizing: "border-box",
+    overflow: "visible",
+    
+
+  },
+  pinSticky: {
+    position: "sticky",
+    top: 120,
+    zIndex: 20,
+    width: "100%",
+    pointerEvents: "auto",
+    alignSelf: "start",
+  },
+
+  
+
+  practiceOuterContainer: {
+    position: "relative",
+    width: "100%",
+  },
+  practiceCentralContent: {
+    maxWidth: 900,
+    width: "100%",
+    minWidth: 0,
+  },
+ 
+  pinClick: {
+    pointerEvents: "auto",
+  },
+
+
+
+ 
 
 
 
