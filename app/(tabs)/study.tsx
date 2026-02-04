@@ -1,8 +1,8 @@
 import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import {
-    validateEquationSyntax,
-    validateEquationTemplate,
+  validateEquationSyntax,
+  validateEquationTemplate,
 } from "@/utilities/equationValidator";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -111,6 +111,9 @@ export default function StudyPage() {
   const [hintLevel, setHintLevel] = useState<number>(0);
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
+
+  // Chat help modal
+  const [showChatModal, setShowChatModal] = useState(false);
 
   const validateInput = (text: string): boolean => {
     setInputError(null);
@@ -824,6 +827,79 @@ export default function StudyPage() {
   // Study interface view
   return (
     <div style={styles.page}>
+      {/*chat help button*/}
+      <button
+        type="button"
+        style={styles.chatBubbleButton}
+        onClick={() => setShowChatModal(true)}
+        aria-label="Open help chat"
+      >
+        <Ionicons name="chatbubble-ellipses" size={26} color="#ffffff" />
+      </button>
+
+      {/* Chat help modal */}
+      {showChatModal && (
+        <div
+          style={styles.chatModalOverlay}
+          onClick={() => setShowChatModal(false)}
+          role="presentation"
+        >
+          <div
+            style={styles.chatModalContent}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Help chat"
+          >
+            <div style={styles.chatModalHeader}>
+              <div style={styles.chatModalHeaderLeft}>
+                <div style={styles.chatModalAvatar}>
+                  <Ionicons name="chatbubble-ellipses" size={20} color="#a78bfa" />
+                </div>
+                <div>
+                  <ThemedText type="subtitle" style={styles.chatModalTitle}>
+                    Help
+                  </ThemedText>
+                  <span style={styles.chatModalSubtitle}>Ask for guidance</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                style={styles.chatModalCloseButton}
+                onClick={() => setShowChatModal(false)}
+                aria-label="Close chat"
+              >
+                <Ionicons name="close" size={24} color="#1d1d1f" />
+              </button>
+            </div>
+            <div style={styles.chatModalMessages}>
+              <div style={styles.chatBubbleBot}>
+                <p style={styles.chatBubbleText}>
+                  Hi! Chat with me here when you need help. You’ll be able to ask
+                  questions and get guidance on your current problem soon.
+                </p>
+              </div>
+            </div>
+            <div style={styles.chatModalFooter}>
+              <input
+                type="text"
+                style={styles.chatInput}
+                placeholder="Type a message..."
+                readOnly
+                aria-label="Message input"
+              />
+              <button
+                type="button"
+                style={styles.chatSendButton}
+                aria-label="Send message"
+                disabled
+              >
+                <Ionicons name="send" size={20} color="#ffffff" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={styles.scrollContainer}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <div style={styles.backButtonContainer}>
@@ -1779,5 +1855,158 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 17,
     fontWeight: "500",
     letterSpacing: "-0.01em",
+  },
+  chatBubbleButton: {
+    position: "fixed" as const,
+    right: 24,
+    bottom: 96,
+    backgroundColor: "#a78bfa",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 4px 12px rgba(167, 139, 250, 0.4)",
+    transition: "all 0.2s ease",
+    zIndex: 20,
+  },
+  chatModalOverlay: {
+    position: "fixed" as const,
+    inset: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    padding: 24,
+    boxSizing: "border-box",
+  },
+  chatModalContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0,0,0,0.04)",
+    width: "100%",
+    maxWidth: 420,
+    height: "85vh",
+    maxHeight: 560,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  chatModalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "16px 16px 14px",
+    borderBottom: "1px solid #e5e5e7",
+    backgroundColor: "#fbfbfd",
+    flexShrink: 0,
+  },
+  chatModalHeaderLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  chatModalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f5f5f7",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatModalTitle: {
+    margin: 0,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1d1d1f",
+    letterSpacing: "-0.02em",
+    display: "block",
+  },
+  chatModalSubtitle: {
+    fontSize: 13,
+    color: "#86868b",
+    fontWeight: "400",
+    marginTop: 2,
+    display: "block",
+  },
+  chatModalCloseButton: {
+    backgroundColor: "transparent",
+    border: "none",
+    cursor: "pointer",
+    padding: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    transition: "background-color 0.2s ease",
+  },
+  chatModalMessages: {
+    flex: 1,
+    overflowY: "auto" as const,
+    padding: "16px 16px 12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    WebkitOverflowScrolling: "touch",
+    backgroundColor: "#fbfbfd",
+  },
+  chatBubbleBot: {
+    alignSelf: "flex-start",
+    maxWidth: "85%",
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    padding: "12px 16px",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
+    border: "1px solid #e5e5e7",
+  },
+  chatBubbleText: {
+    fontSize: 15,
+    lineHeight: 1.5,
+    color: "#1d1d1f",
+    margin: 0,
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    letterSpacing: "-0.01em",
+  },
+  chatModalFooter: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 16px 16px",
+    borderTop: "1px solid #e5e5e7",
+    backgroundColor: "#ffffff",
+    flexShrink: 0,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: "#f5f5f7",
+    border: "none",
+    borderRadius: 22,
+    padding: "12px 18px",
+    fontSize: 15,
+    color: "#1d1d1f",
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    outline: "none",
+  },
+  chatSendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#a78bfa",
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    boxShadow: "0 2px 6px rgba(167, 139, 250, 0.35)",
+    opacity: 0.7,
   },
 };
