@@ -10,7 +10,6 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
 
 import CameraCapture from "@/components/CameraCapture";
-import ProgressBar from "@/components/ProgressBar";
 import { randomHexColor } from "@/utilities/randomColor";
 
 let lastRandom = "";
@@ -26,9 +25,6 @@ function randomColor(): string{
 export default function TabTwoScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-
-  const testValues = [0, 1, 25, 50, 80, 99, 100];
-  const testWidth = [20, 50, 100];
 
   return (
     <ParallaxScrollView
@@ -47,24 +43,7 @@ export default function TabTwoScreen() {
         </ThemedText>
       </ThemedView>
 
-      {testValues.map((value) => {
-        const color = randomColor();
-
-        return (
-          <div>
-            {
-              testWidth.map((width) => (
-                <div>
-                  <View style={{ height: 24 }} />
-                  <ProgressBar value={value} color={color} width={width} useLabel={false} />
-                  <View style={{ height: 24 }} />
-                  <ProgressBar value={value} color={color} width={width} useLabel={true} />
-                  <View style={{ height: 24 }} />
-                </div>
-              ))}
-          </div>
-        );
-      })}
+      
 
       <Collapsible title="Camera demo">
         {photoUri ? (
