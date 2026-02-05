@@ -1,4 +1,4 @@
-import { EquationData, HintGenerator } from "@/lib/hint-generator";
+import { EquationData, HintGenerator, StepContext } from "@/lib/hint-generator"; // COMMIT 3 — import StepContext
 import { useSubjects } from "@/lib/subjects-context";
 import {
     validateEquationSyntax,
@@ -253,7 +253,21 @@ export default function MathLearningPlatform() {
         if (!problem) return;
 
         if (!hintGeneratorRef.current) {
-            hintGeneratorRef.current = new HintGenerator(problem, equationData);
+            let ctx: StepContext | null = null;
+            if (
+                stepData &&
+                stepData.steps.length > 0 &&
+                currentStepIndex < stepData.steps.length
+            ) {
+                const step = stepData.steps[currentStepIndex];
+                ctx = {
+                    stepIndex: currentStepIndex,
+                    totalSteps: stepData.steps.length,
+                    instruction: step.instruction,
+                    checkpoint: step.checkpoint,
+                };
+            }
+            hintGeneratorRef.current = new HintGenerator(problem, equationData, ctx);
         }
 
         if (!hintGeneratorRef.current.hasMoreHints()) {
