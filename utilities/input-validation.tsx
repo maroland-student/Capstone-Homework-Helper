@@ -53,5 +53,25 @@ export function closeParens(equation: string): string {
         return left + '=' + right;
     }
 
-    
+    // Add missing closing parentheses
+    let openParensCount = 0;
+    for (const char of equation) {
+        if (char === '(') {
+            openParensCount++;
+        } else if (char === ')') {
+            openParensCount--;
+        }
+    }
+
+    // Append the required number of closing parentheses
+    for (let i = 0; i < openParensCount; i++) {
+        equation += ')';
+    }
+
+    // Prepend the required number of opening parentheses
+    for (let i = 0; i < -openParensCount; i++) {
+        equation = '(' + equation;
+    }
+
+    return equation;
 }
