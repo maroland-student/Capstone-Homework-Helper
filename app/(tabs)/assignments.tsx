@@ -1519,31 +1519,36 @@ const styles: { [key: string]: React.CSSProperties } = {
   tabContainer: {
     display: "flex",
     gap: 12,
-    borderBottom: "2px solid #e5e7eb",
+    borderBottom: "1px solid rgba(167,139,250,0.18)",
     paddingBottom: 8,
     maxWidth: 900,
     margin: "0 auto",
     position: "sticky",
     top: 0,
     zIndex: 10,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#f6f4ff",
   },
+
   tab: {
     padding: "12px 24px",
     backgroundColor: "transparent",
-    border: "none",
-    borderRadius: "8px 8px 0 0",
+    border: "1px solid rgba(167,139,250,0.2)",
+    borderRadius: "12px 12px 0 0",
     cursor: "pointer",
     transition: "all 0.2s",
-  },
-  activeTab: {
-    backgroundColor: "#2563eb",
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: "600",
     color: "#6b7280",
   },
+  activeTab: {
+    backgroundColor: "#6B46C1",
+    borderColor: "rgba(167,139,250,0.4)",
+  },
+
+  tabText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6b7280",
+  },
+
   activeTabText: {
     color: "white",
   },
@@ -1551,23 +1556,36 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: 24,
   },
   inputContainer: {
+    backgroundColor: "#ffffff",
+    border: "1px solid rgba(167,139,250,0.2)",
+    borderRadius: 16,
+    padding: 12,
     marginBottom: 16,
+    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
     gap: 8,
   },
   inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
     marginBottom: 8,
+
+    color: "#6B46C1",
+    display: "block",
+
+
   },
   textInput: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "rgba(128, 128, 128, 0.3)",
+    borderColor: "rgba(167,139,250,0.3)",
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    backgroundColor: "rgba(128, 128, 128, 0.05)",
+    backgroundColor: "#ffffff",
     fontFamily: "inherit",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+
+
   },
   inputErrorText: {
     display: "block",
@@ -1578,7 +1596,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   characterCount: {
     fontSize: 12,
     opacity: 0.6,
+    color: "#6b7280",
     textAlign: "right",
+    marginTop: 5,
   },
   buttonRow: {
     display: "flex",
@@ -1587,19 +1607,22 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   submitButton: {
     flex: 1,
-    backgroundColor: "#34C759",
+    backgroundColor: "#6B46C1",
     padding: "12px 16px",
     borderRadius: 8,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.45)",
     cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
   },
   generateButton: {
     flex: 1,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#A78BFA",
     padding: "12px 16px",
     borderRadius: 8,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.45)",
     cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -1608,7 +1631,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   buttonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "800",
   },
   centerContent: {
     display: "flex",
@@ -1622,7 +1645,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: 40,
     height: 40,
     border: "4px solid #e5e7eb",
-    borderTop: "4px solid #2563eb",
+    borderTop: "4px solid #6B46C1",
     borderRadius: "50%",
     animation: "spin 1s linear infinite",
   },
@@ -1632,15 +1655,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     opacity: 0.7,
   },
   problemBox: {
-    backgroundColor: "rgba(128, 128, 128, 0.1)",
-    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     padding: 16,
     marginBottom: 16,
-    border: "1px solid rgba(128, 128, 128, 0.2)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
   },
   problemText: {
     fontSize: 16,
     lineHeight: 1.5,
+    color: "#1d1d1f",
   },
   equationContainer: {
     gap: 16,
@@ -1648,36 +1673,46 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   equationLabel: {
     marginBottom: 8,
+    display: "block",
+    color: "#6B46C1",
+    fontWeight: "700",
+
   },
   equationBox: {
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
-    borderRadius: 12,
+    backgroundColor: "#faf5ff",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    border: "1px solid rgba(0, 122, 255, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
+
+
   },
   equationTitle: {
     fontSize: 14,
     fontWeight: "600",
+    color: "#6B46C1",
     marginBottom: 8,
     opacity: 0.8,
   },
   variablesBox: {
-    backgroundColor: "rgba(255, 149, 0, 0.1)",
-    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    border: "1px solid rgba(255, 149, 0, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
   },
   variableItem: {
     paddingTop: 4,
     paddingBottom: 4,
   },
   saveButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: "#6B46C1",
     padding: "12px 32px",
     borderRadius: 8,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     cursor: "pointer",
     display: "block",
     margin: "16px auto",
@@ -1688,38 +1723,48 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: "center",
   },
   stepSection: {
-    backgroundColor: "rgba(0, 122, 255, 0.06)",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    border: "1px solid rgba(0, 122, 255, 0.18)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 6px 15px rgba(0,0,0,0.06)",
   },
   stepTitle: {
     display: "block",
     marginBottom: 8,
+    fontWeight: "800",
+    color: "#6B46C1",
+
   },
+
   stepMeta: {
     display: "block",
     fontSize: 13,
     opacity: 0.75,
     marginBottom: 8,
+    color: "#6b7280",
   },
+
   stepInstruction: {
     display: "block",
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 8,
+    color: "#1d1d1f",
   },
   stepAttempts: {
     fontSize: 12,
     opacity: 0.7,
     marginTop: 8,
+    color:"#6b7280",
   },
   roleToggle: {
     display: "flex",
     gap: 8,
     marginBottom: 24,
-    backgroundColor: "#e0f2fe",
+    backgroundColor: "#f3e8ff",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
     borderRadius: 8,
     padding: 4,
   },
@@ -1731,6 +1776,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
     backgroundColor: "transparent",
   },
+
+
   roleButtonActive: {
     backgroundColor: "#2563eb",
   },
@@ -1744,17 +1791,30 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   subheading: {
     fontSize: 16,
-    color: "#4b5563",
+    color: "#6b7280",
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#6B46C1",
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rbga(0,0,0,0.06)",
     cursor: "pointer",
     width: "100%",
+  },
+
+  answerSection: {
+
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 15,
+    boxShadow: "0 6px 15px rgba(0,0,0,0.06)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+   
+    
   },
   listHeading: {
     fontSize: 20,
@@ -1806,7 +1866,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   backButton: {
     fontSize: 16,
-    color: "#2563eb",
+    color: "#6B46C1",
     fontWeight: "600",
     marginBottom: 16,
     backgroundColor: "transparent",
@@ -1875,7 +1935,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   confirmButton: {
     flex: 1,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#6B46C1",
     borderRadius: 8,
     padding: 12,
     border: "none",
@@ -1887,10 +1947,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   answerLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: "#6B46C1",
     marginTop: 12,
     marginBottom: 8,
   },
+
   inputHint: {
     fontSize: 13,
     color: "#6b7280",
@@ -1901,14 +1962,15 @@ const styles: { [key: string]: React.CSSProperties } = {
   answerInput: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "rgba(128, 128, 128, 0.3)",
-    borderRadius: 8,
+    borderColor: "rgba(167,139,250,0.3)",
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    backgroundColor: "rgba(128, 128, 128, 0.05)",
+    backgroundColor: "#ffffff",
     fontFamily: "inherit",
     resize: "vertical" as "vertical",
     marginBottom: 8,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
   },
   answerButtons: {
     display: "flex",
@@ -1917,36 +1979,40 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   submitAnswerButton: {
     flex: 1,
-    backgroundColor: "#34C759",
+    backgroundColor: "#6B46C1",
     borderRadius: 8,
     padding: 12,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
   cancelAnswerButton: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#ffffff",
     borderRadius: 8,
     padding: 12,
-    border: "1px solid rgba(128, 128, 128, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
   hintButton: {
     flex: "1 1 auto",
     minWidth: 120,
-    backgroundColor: "#FF9500",
+    backgroundColor: "#A78BFA",
     borderRadius: 8,
     padding: 12,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
   hintBox: {
-    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    backgroundColor: "#faf5ff",
     borderRadius: 8,
     padding: 16,
     marginTop: 16,
     marginBottom: 16,
-    border: "1px solid rgba(255, 149, 0, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     maxHeight: 220,
     overflowY: "auto",
     WebkitOverflowScrolling: "touch",
@@ -1980,10 +2046,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     wordBreak: "break-word" as const,
   },
   cancelButtonText: {
-    color: "#6b7280",
+    color: "#6B46C1",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "800",
   },
+
   feedbackSubmitted: {
     color: "#16a34a",
     fontSize: 14,
@@ -2020,7 +2087,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   page: {
     height: "100vh",
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#f6f4ff",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -2032,7 +2099,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     position: "sticky" as const,
     top: 0,
     zIndex: 10,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#f6f4ff",
   },
   scrollContainer: {
     flex: 1,
