@@ -57,6 +57,16 @@ type StepCheckpoint = {
   checkpoint: string;
 };
 
+type CompletedStep = {
+  stepIndex: number;
+  instruction: string;
+  correct: string;
+  response?: string;
+  timestamp: string;
+}
+
+
+
 export default function MathLearningPlatform() {
   const { selectedTopics } = useSubjects();
   const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
@@ -99,6 +109,9 @@ export default function MathLearningPlatform() {
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState<CompletedStep[]>([]);
+  const [expandedStep, setExpandedStep] = useState<Record<number, boolean>>({});
+
 
   // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
@@ -453,6 +466,9 @@ export default function MathLearningPlatform() {
       setStepFeedbackText(null);
       setStepFeedbackCorrect(null);
       setStepAttemptsByIndex({});
+      setCompletedSteps([]);
+      setExpandedStep({});
+
       return;
     }
 
@@ -468,6 +484,8 @@ export default function MathLearningPlatform() {
         setStepFeedbackText(null);
         setStepFeedbackCorrect(null);
         setStepAttemptsByIndex({});
+        setCompletedSteps([]);
+        setExpandedStep({});
 
         const resp = await fetch(`${API_BASE_URL}/api/openai/step-checkpoints`, {
           method: "POST",
@@ -517,6 +535,12 @@ export default function MathLearningPlatform() {
     };
   }, [problem, equationData?.substitutedEquation]);
 
+
+  // testing state actually working/updating before UI build
+  useEffect(() => {
+    console.log(" Steps :", completedSteps);
+  }, [completedSteps])
+
   const submitStepAttempt = async () => {
     if (!stepData || !stepData.steps?.length) return;
     if (currentStepIndex >= stepData.steps.length) return;
@@ -552,6 +576,60 @@ export default function MathLearningPlatform() {
       const feedback = typeof data?.feedback === "string" ? data.feedback : (correct ? "Correct." : "Incorrect.");
 
       if (correct) {
+
+        const timestamp = new Date().toLocaleString();
+
+        const stepRecord: CompletedStep = {
+          stepIndex: currentStepIndex,
+          instruction: step.instruction,
+          correct: practiceAnswer,
+          response: feedback,
+          timestamp: timestamp,
+
+        }
+
+        setCompletedSteps((prevStep) => {
+          const nextStep: CompletedStep[] =[];
+        
+
+        // I'm just adding this copying loop in to avoid any duplicates in case 
+          // there's an accidental redo of the logging
+        let i = 0;
+        for (i; i < prevStep.length; i++) {
+
+          const prevRecord = prevStep[i];
+          const prevRecordIndex = prevRecord.stepIndex;
+
+          let sameStep = false;
+          if (prevRecordIndex === currentStepIndex){
+            sameStep = true;
+          }
+
+          if (!sameStep) {
+            nextStep.push(prevRecord);
+          }
+    }
+          nextStep.push(stepRecord);
+
+
+          nextStep.sort((i, j) => {
+
+            if (i.stepIndex < j.stepIndex) {
+              return -1;
+            }
+            if (i.stepIndex > j.stepIndex) {
+              return 1;
+            }
+
+
+            return 0;
+          })
+
+          return nextStep;
+
+
+      })
+    
         setStepFeedbackCorrect(true);
         setStepFeedbackText(feedback);
         setLastCorrectStepIndex(currentStepIndex);
@@ -847,6 +925,102 @@ export default function MathLearningPlatform() {
               ) : null}
             </ThemedView>
           )}
+
+
+          {completedSteps.length > 0 && (
+
+
+            <ThemedView style={styles.completedStepsContainer}>
+              <ThemedText style={styles.completedStepsHeader}>
+                 Previous Work:
+              </ThemedText>
+            
+
+            <ThemedText style={styles.completedStepsTitle}>
+              These Steps Are Correct. Expand to see more Details...
+            </ThemedText>
+
+
+            {completedSteps.map((stepItem) => {
+              const expanded = expandedStep[stepItem.stepIndex] === true;
+
+              return (
+                <div key={stepItem.stepIndex} style={styles.completedRow}>
+                  <div style={styles.completedTopRow}>  
+
+
+
+                    <ThemedText style={styles.completedStepBigLabel}>
+                      Step {stepItem.stepIndex + 1}
+                    </ThemedText>
+                    <ThemedText style={styles.completedStepSmallLabel}>
+                      Correct: {stepItem.correct}
+                    </ThemedText>
+                    <ThemedText style={styles.completedStepSmallLabel}>
+                      Completed At: {stepItem.timestamp}
+                    </ThemedText>
+
+                </div>
+
+                    <button type="button"
+                            style={styles.completedButton}
+                            onClick={() => {
+
+                              setExpandedStep((prev) =>{
+                                const next: Record<number, boolean> = {}
+
+                                for (const i in prev) {
+                                  next[Number(i)] = prev[Number(i)];
+                                }
+
+                                next[stepItem.stepIndex] = !prev[stepItem.stepIndex];
+                                return next;
+                              })
+
+                              
+                            }}
+
+                          >
+                            {expanded ? 'Hide' : 'View'}
+                          </button>
+                       
+                      
+          {/* Expanded part! */}
+
+                      {expanded && (
+                        <div style={styles.expandedMainContainer}>
+                          
+                          <ThemedText style={styles.expandedHeader}>
+                            Instruction: 
+                          </ThemedText>
+                          <ThemedText style={styles.expandedText}>
+                            {stepItem.instruction}
+                          </ThemedText>
+
+                        
+                        {stepItem.response && (
+                          <>
+
+                          <ThemedText style={styles.expandedLabel}>
+                            Feedback: 
+                          </ThemedText>
+                          <ThemedText style={styles.expandedText}>
+                            {stepItem.response}
+                          </ThemedText>
+                          
+                      </>
+
+                      )}
+
+
+                  </div>
+                )}
+             </div>
+              )
+            })}
+    </ThemedView>
+          )}
+          {/* Continue answer box for the student ^^^ */}
 
           <ThemedView style={styles.answerSection}>
             <ThemedText style={styles.answerLabel}>
@@ -1870,6 +2044,145 @@ const styles: { [key: string]: React.CSSProperties } = {
     overscrollBehavior: "contain",
     boxSizing: "border-box",
   },
+
+  completedStepsContainer: {
+    backgroundColor: "#ffffff",
+    padding: 16, 
+    marginBottom: 16,
+    border: "1px solid rgba(167,139,250,0.18)",
+    borderRadius: 14,
+
+    boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
+  
+
+    maxHeight: 300,
+    overflowY: "auto",
+    WebkitOverflowScrolling: 'touch',
+
+  },
+  completedStepsHeader: {
+    display: "block",
+    fontSize: 20,
+    lineHeight: "24px",
+    fontWeight: "700",
+    marginBottom: 5,
+    color: "#6B46C1",
+
+
+  },
+  completedStepsTitle: {
+    display: "block",
+    fontSize: 13,
+    fontStyle: "normal",
+    lineHeight: 1.4,
+    color: "#86868b",
+  
+
+    marginBottom: 14,
+
+
+
+  },
+  completedRow: {
+    backgroundColor:"#faf5ff",
+    borderRadius: 14,
+    border: "2px solid rgba(167,139, 250,0.35)",
+    padding: 14,
+    marginBottom: 10,
+  
+    boxShadow: "0 1px 3px rgba(167,139,250,0.1)",
+
+  },
+  completedTopRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 6,
+
+  },
+  completedStepSmallLabel: {
+    display: "block",
+    fontSize: 12,
+    opacity: 0.9,
+    color: "#86868b",
+    marginBottom: 2,
+
+  },
+  completedStepBigLabel: {
+    display: "block",
+    fontSize: 16,
+    color: "#1d1d1f",
+    fontWeight: "700",
+  
+    marginBottom: 2,
+
+  },
+  completedButton: {
+
+    marginTop: 8,
+    borderRadius: 12,
+    border: "1.5px solid #A78BFA",
+    padding: "8px 12px",
+    cursor: "pointer",
+    backgroundColor: "#ffffff",
+    color: "#6B46C1",
+    fontSize: 12,
+    fontWeight: "500",
+    
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+
+  
+   
+  },
+
+
+
+
+  expandedMainContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: "1px solid rgba(167,139, 250,0.2)",
+
+    maxHeight: 120,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingRight: 10,
+
+
+  },
+  expandedHeader: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 5,
+    color: "#6B46C1",
+
+  },
+  expandedLabel: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 5,
+    color: "#6B46C1",
+
+  },
+  expandedText: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 12,
+
+    color: "#1d1d1f",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+
+    lineHeight: 1.5,
+    
+
+  },
+
+
+
 
   
 };
