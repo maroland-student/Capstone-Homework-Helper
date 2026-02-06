@@ -3,7 +3,7 @@
 import { OpenAI } from "openai";
 import openAIQueryParams from "../server/models/openai-query";
 import ToggleLogs, { LogLevel } from "../server/utilities/toggle_logs";
-import { getTopicById } from "./topicsLoader";
+import { getCategoryNames, getTopicById } from "./topicsLoader";
 
 const ai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
@@ -149,11 +149,63 @@ export class OpenAIHandler {
     }
   }
 
-  public static async generateAlgebra1Problem(): Promise<string> {
+  public static async generateAlgebra1Problem(): Promise<{
+    problem: string;
+    categoryName?: string;
+  }> {
     return this.generateMathProblem([]);
   }
 
-  public static async generateMathProblem(topicIds: string[]): Promise<string> {
+  public static async classifyMathProblem(
+    problemText: string,
+  ): Promise<string | null> {
+    try {
+      const categoryNames = getCategoryNames();
+      const list = categoryNames.join("\n- ");
+
+      const prompt = `You are classifying an Algebra 1 math word problem into exactly one of these categories. Reply with ONLY the category name, nothing else.
+
+Categories:
+- ${list}
+
+Problem to classify:
+"${problemText}"
+
+Reply with exactly one of the category names from the list above.`;
+
+      const response = await ai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You reply with only a single category name from the given list. No explanation or extra text.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+      });
+
+      const text = (response.choices[0]?.message?.content ?? "").trim();
+      if (!text) return null;
+      const match = categoryNames.find(
+        (name) => name.toLowerCase() === text.toLowerCase(),
+      );
+      if (match) return match;
+      return text;
+    } catch (err) {
+      ToggleLogs.log(
+        "Error classifying math problem: " + err,
+        LogLevel.CRITICAL,
+      );
+      return null;
+    }
+  }
+
+  public static async generateMathProblem(topicIds: string[]): Promise<{
+    problem: string;
+    categoryName?: string;
+  }> {
     try {
       let topicDescriptions: string[] = [];
 
@@ -224,13 +276,20 @@ Do NOT include equations like "y = mx + b" or "y = 25 + 0.15x" in the problem te
       });
 
       const text = response.choices[0]?.message?.content ?? "";
-      return text.trim();
+      const problem = text.trim();
+
+      if (topicIds.length === 0 && problem) {
+        const categoryName = await this.classifyMathProblem(problem);
+        return { problem, categoryName: categoryName ?? undefined };
+      }
+
+      return { problem };
     } catch (err) {
       ToggleLogs.log(
         "Error generating math problem: " + err,
         LogLevel.CRITICAL,
       );
-      return "Error generating math problem.";
+      return { problem: "Error generating math problem." };
     }
   }
 
@@ -413,118 +472,164 @@ If no equation can be found, return:
       });
 
       const text = response.choices[0]?.message?.content ?? "{}";
-            ToggleLogs.log(`Raw extraction response: ${text}`, LogLevel.DEBUG);
-            
-            let parsed: any;
-            try {
-                // Try to clean the response if it has markdown code blocks
-                let cleanedText = text.trim();
-                if (cleanedText.startsWith('```json')) {
-                    cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-                } else if (cleanedText.startsWith('```')) {
-                    cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-                }
-                
-                parsed = JSON.parse(cleanedText);
-            } catch (parseErr: any) {
-                ToggleLogs.log(`Failed to parse JSON response: ${parseErr?.message || parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
-                throw new Error(`Invalid JSON response from AI: ${parseErr?.message || parseErr}`);
-            }
-            
-            // Validate response structure
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-                ToggleLogs.log(`Invalid parsed response type: ${typeof parsed}, value: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
-                throw new Error('Invalid response structure from AI: expected object, got ' + typeof parsed);
-            }
-            
-            // Validate required fields exist and are correct types
-            const validationErrors: string[] = [];
-            if (typeof parsed.equation !== 'string') {
-                validationErrors.push(`Missing or invalid 'equation' field (expected string, got ${typeof parsed.equation})`);
-            }
-            if (typeof parsed.substitutedEquation !== 'string') {
-                validationErrors.push(`Missing or invalid 'substitutedEquation' field (expected string, got ${typeof parsed.substitutedEquation})`);
-            }
-            if (!Array.isArray(parsed.variables) && typeof parsed.variables !== 'object') {
-                validationErrors.push(`Missing or invalid 'variables' field (expected array or object, got ${typeof parsed.variables})`);
-            }
-            
-            if (validationErrors.length > 0) {
-                ToggleLogs.log(`JSON structure validation failed: ${validationErrors.join('; ')}. Parsed: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
-                throw new Error(`Invalid JSON structure: ${validationErrors.join('; ')}`);
-            }
-            
-            // Clean equations - remove unwanted text
-            const cleanEquation = (eq: string): string => {
-                if (!eq) return "";
-                // Remove common unwanted words/phrases
-                return eq
-                    .replace(/\btext\s+and\s+/gi, '')
-                    .replace(/\btext\s*,?\s*/gi, '')
-                    .replace(/,\s*,\s*/g, ', ') // Remove double commas
-                    .replace(/^\s*,\s*/, '') // Remove leading comma
-                    .replace(/\s*,\s*$/, '') // Remove trailing comma
-                    .trim();
-            };
-            
-            // Validate and clean variables array
-            let cleanedVariables: string[] = [];
-            if (Array.isArray(parsed.variables)) {
-                cleanedVariables = parsed.variables
-                    .filter((v: any) => v !== null && v !== undefined && typeof v === 'string' && v.trim() !== '')
-                    .map((v: string) => v.trim());
-            } else if (parsed.variables && typeof parsed.variables === 'object') {
-                // Handle legacy format - convert object to array
-                cleanedVariables = Object.entries(parsed.variables)
-                    .map(([key, value]) => {
-                        if (value !== null && value !== undefined) {
-                            return `${String(value)} ${key}`;
-                        }
-                        return null;
-                    })
-                    .filter((v): v is string => v !== null);
-            }
-            
-            const cleanedEquation = cleanEquation(parsed.equation || "");
-            const cleanedSubstituted = cleanEquation(parsed.substitutedEquation || "");
-            
-            // Final validation: ensure we have at least one equation
-            if (!cleanedEquation && !cleanedSubstituted) {
-                ToggleLogs.log(`Warning: Both equations are empty after cleaning. Original: ${JSON.stringify(parsed)}`, LogLevel.WARN);
-            }
-            
-            // Log the extraction result for debugging
-            ToggleLogs.log(`Extracted equation data: ${JSON.stringify({
-                equation: cleanedEquation,
-                substitutedEquation: cleanedSubstituted,
-                variablesCount: cleanedVariables.length,
-                originalEquation: parsed.equation,
-                originalSubstituted: parsed.substitutedEquation
-            })}`, LogLevel.INFO);
-            
-            return {
-                equation: cleanedEquation,
-                substitutedEquation: cleanedSubstituted,
-                variables: cleanedVariables,
-            };
-        } catch (err) {
-            ToggleLogs.log("Error extracting equation: " + err, LogLevel.CRITICAL);
-            return {
-                equation: "",
-                substitutedEquation: "",
-                variables: [],
-            };
-        }
-    }
+      ToggleLogs.log(`Raw extraction response: ${text}`, LogLevel.DEBUG);
 
-    public static async generateStepCheckpoints(problemText: string, substitutedEquation: string): Promise<{
-        targetVariable: string;
-        startEquation: string;
-        steps: { instruction: string; checkpoint: string }[];
-        finalAnswer: string;
-    }> {
-        try {
-            const prompt = `You are helping build "checkpoint" step practice for Algebra 1 / early Algebra 2 topics.
+      let parsed: any;
+      try {
+        // Try to clean the response if it has markdown code blocks
+        let cleanedText = text.trim();
+        if (cleanedText.startsWith("```json")) {
+          cleanedText = cleanedText
+            .replace(/^```json\s*/, "")
+            .replace(/\s*```$/, "");
+        } else if (cleanedText.startsWith("```")) {
+          cleanedText = cleanedText
+            .replace(/^```\s*/, "")
+            .replace(/\s*```$/, "");
+        }
+
+        parsed = JSON.parse(cleanedText);
+      } catch (parseErr: any) {
+        ToggleLogs.log(
+          `Failed to parse JSON response: ${parseErr?.message || parseErr}. Raw text: ${text}`,
+          LogLevel.CRITICAL,
+        );
+        throw new Error(
+          `Invalid JSON response from AI: ${parseErr?.message || parseErr}`,
+        );
+      }
+
+      // Validate response structure
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        ToggleLogs.log(
+          `Invalid parsed response type: ${typeof parsed}, value: ${JSON.stringify(parsed)}`,
+          LogLevel.CRITICAL,
+        );
+        throw new Error(
+          "Invalid response structure from AI: expected object, got " +
+            typeof parsed,
+        );
+      }
+
+      // Validate required fields exist and are correct types
+      const validationErrors: string[] = [];
+      if (typeof parsed.equation !== "string") {
+        validationErrors.push(
+          `Missing or invalid 'equation' field (expected string, got ${typeof parsed.equation})`,
+        );
+      }
+      if (typeof parsed.substitutedEquation !== "string") {
+        validationErrors.push(
+          `Missing or invalid 'substitutedEquation' field (expected string, got ${typeof parsed.substitutedEquation})`,
+        );
+      }
+      if (
+        !Array.isArray(parsed.variables) &&
+        typeof parsed.variables !== "object"
+      ) {
+        validationErrors.push(
+          `Missing or invalid 'variables' field (expected array or object, got ${typeof parsed.variables})`,
+        );
+      }
+
+      if (validationErrors.length > 0) {
+        ToggleLogs.log(
+          `JSON structure validation failed: ${validationErrors.join("; ")}. Parsed: ${JSON.stringify(parsed)}`,
+          LogLevel.CRITICAL,
+        );
+        throw new Error(
+          `Invalid JSON structure: ${validationErrors.join("; ")}`,
+        );
+      }
+
+      // Clean equations - remove unwanted text
+      const cleanEquation = (eq: string): string => {
+        if (!eq) return "";
+        // Remove common unwanted words/phrases
+        return eq
+          .replace(/\btext\s+and\s+/gi, "")
+          .replace(/\btext\s*,?\s*/gi, "")
+          .replace(/,\s*,\s*/g, ", ") // Remove double commas
+          .replace(/^\s*,\s*/, "") // Remove leading comma
+          .replace(/\s*,\s*$/, "") // Remove trailing comma
+          .trim();
+      };
+
+      // Validate and clean variables array
+      let cleanedVariables: string[] = [];
+      if (Array.isArray(parsed.variables)) {
+        cleanedVariables = parsed.variables
+          .filter(
+            (v: any) =>
+              v !== null &&
+              v !== undefined &&
+              typeof v === "string" &&
+              v.trim() !== "",
+          )
+          .map((v: string) => v.trim());
+      } else if (parsed.variables && typeof parsed.variables === "object") {
+        // Handle legacy format - convert object to array
+        cleanedVariables = Object.entries(parsed.variables)
+          .map(([key, value]) => {
+            if (value !== null && value !== undefined) {
+              return `${String(value)} ${key}`;
+            }
+            return null;
+          })
+          .filter((v): v is string => v !== null);
+      }
+
+      const cleanedEquation = cleanEquation(parsed.equation || "");
+      const cleanedSubstituted = cleanEquation(
+        parsed.substitutedEquation || "",
+      );
+
+      // Final validation: ensure we have at least one equation
+      if (!cleanedEquation && !cleanedSubstituted) {
+        ToggleLogs.log(
+          `Warning: Both equations are empty after cleaning. Original: ${JSON.stringify(parsed)}`,
+          LogLevel.WARN,
+        );
+      }
+
+      // Log the extraction result for debugging
+      ToggleLogs.log(
+        `Extracted equation data: ${JSON.stringify({
+          equation: cleanedEquation,
+          substitutedEquation: cleanedSubstituted,
+          variablesCount: cleanedVariables.length,
+          originalEquation: parsed.equation,
+          originalSubstituted: parsed.substitutedEquation,
+        })}`,
+        LogLevel.INFO,
+      );
+
+      return {
+        equation: cleanedEquation,
+        substitutedEquation: cleanedSubstituted,
+        variables: cleanedVariables,
+      };
+    } catch (err) {
+      ToggleLogs.log("Error extracting equation: " + err, LogLevel.CRITICAL);
+      return {
+        equation: "",
+        substitutedEquation: "",
+        variables: [],
+      };
+    }
+  }
+
+  public static async generateStepCheckpoints(
+    problemText: string,
+    substitutedEquation: string,
+  ): Promise<{
+    targetVariable: string;
+    startEquation: string;
+    steps: { instruction: string; checkpoint: string }[];
+    finalAnswer: string;
+  }> {
+    try {
+      const prompt = `You are helping build "checkpoint" step practice for Algebra 1 / early Algebra 2 topics.
 
 Given:
 - Word problem: "${problemText}"
@@ -560,84 +665,115 @@ Return ONLY valid JSON with EXACT keys:
   "finalAnswer": "x = 500"
 }`;
 
-            const response = await ai.chat.completions.create({
-                model: "gpt-4o-mini",
-                messages: [
-                    {
-                        role: "system",
-                        content:
-                            "You generate short, checkable algebra checkpoint steps. Always return valid JSON.",
-                    },
-                    { role: "user", content: prompt },
-                ],
-                response_format: { type: "json_object" },
-                temperature: 0.2,
-            });
+      const response = await ai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You generate short, checkable algebra checkpoint steps. Always return valid JSON.",
+          },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
 
-            const text = response.choices[0]?.message?.content ?? "{}";
-            ToggleLogs.log(`Raw step checkpoints response: ${text}`, LogLevel.DEBUG);
-            
-            let parsed: any;
-            try {
-                // Try to clean the response if it has markdown code blocks
-                let cleanedText = text.trim();
-                if (cleanedText.startsWith('```json')) {
-                    cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-                } else if (cleanedText.startsWith('```')) {
-                    cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-                }
-                
-                parsed = JSON.parse(cleanedText);
-            } catch (parseErr: any) {
-                ToggleLogs.log(`Failed to parse step checkpoints JSON: ${parseErr?.message || parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
-                throw new Error(`Invalid JSON response from AI: ${parseErr?.message || parseErr}`);
-            }
-            
-            // Validate response structure
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-                ToggleLogs.log(`Invalid parsed step checkpoints response: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
-                throw new Error('Invalid response structure from AI: expected object');
-            }
+      const text = response.choices[0]?.message?.content ?? "{}";
+      ToggleLogs.log(`Raw step checkpoints response: ${text}`, LogLevel.DEBUG);
 
-            let steps =
-                Array.isArray(parsed.steps)
-                    ? parsed.steps
-                          .filter((s: any) => s && typeof s.instruction === "string" && typeof s.checkpoint === "string")
-                          .map((s: any) => ({ instruction: s.instruction.trim(), checkpoint: s.checkpoint.trim() }))
-                          .filter((s: any) => s.instruction.length > 0 && s.checkpoint.length > 0)
-                          .slice(0, 8)
-                    : [];
-
-            // Validate step checkpoints are mathematically correct (basic syntax check)
-            const startEq = typeof parsed.startEquation === "string" ? parsed.startEquation : substitutedEquation;
-            steps = this.validateStepCheckpointsSync(startEq, steps);
-
-            return {
-                targetVariable: typeof parsed.targetVariable === "string" ? parsed.targetVariable : "x",
-                startEquation: startEq,
-                steps,
-                finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : "",
-            };
-        } catch (err) {
-            ToggleLogs.log("Error generating step checkpoints: " + err, LogLevel.CRITICAL);
-            return {
-                targetVariable: "x",
-                startEquation: substitutedEquation,
-                steps: [],
-                finalAnswer: "",
-            };
+      let parsed: any;
+      try {
+        // Try to clean the response if it has markdown code blocks
+        let cleanedText = text.trim();
+        if (cleanedText.startsWith("```json")) {
+          cleanedText = cleanedText
+            .replace(/^```json\s*/, "")
+            .replace(/\s*```$/, "");
+        } else if (cleanedText.startsWith("```")) {
+          cleanedText = cleanedText
+            .replace(/^```\s*/, "")
+            .replace(/\s*```$/, "");
         }
-    }
 
-    public static async gradeStepAttempt(params: {
-        startEquation: string;
-        targetVariable: string;
-        stepInstruction: string;
-        expectedCheckpoint: string;
-        studentInput: string;
-    }): Promise<{ correct: boolean; feedback: string }> {
-        try {
-            const prompt = `You are grading ONE checkpoint step of a multi-step math solution.
+        parsed = JSON.parse(cleanedText);
+      } catch (parseErr: any) {
+        ToggleLogs.log(
+          `Failed to parse step checkpoints JSON: ${parseErr?.message || parseErr}. Raw text: ${text}`,
+          LogLevel.CRITICAL,
+        );
+        throw new Error(
+          `Invalid JSON response from AI: ${parseErr?.message || parseErr}`,
+        );
+      }
+
+      // Validate response structure
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        ToggleLogs.log(
+          `Invalid parsed step checkpoints response: ${JSON.stringify(parsed)}`,
+          LogLevel.CRITICAL,
+        );
+        throw new Error("Invalid response structure from AI: expected object");
+      }
+
+      let steps = Array.isArray(parsed.steps)
+        ? parsed.steps
+            .filter(
+              (s: any) =>
+                s &&
+                typeof s.instruction === "string" &&
+                typeof s.checkpoint === "string",
+            )
+            .map((s: any) => ({
+              instruction: s.instruction.trim(),
+              checkpoint: s.checkpoint.trim(),
+            }))
+            .filter(
+              (s: any) => s.instruction.length > 0 && s.checkpoint.length > 0,
+            )
+            .slice(0, 8)
+        : [];
+
+      // Validate step checkpoints are mathematically correct (basic syntax check)
+      const startEq =
+        typeof parsed.startEquation === "string"
+          ? parsed.startEquation
+          : substitutedEquation;
+      steps = this.validateStepCheckpointsSync(startEq, steps);
+
+      return {
+        targetVariable:
+          typeof parsed.targetVariable === "string"
+            ? parsed.targetVariable
+            : "x",
+        startEquation: startEq,
+        steps,
+        finalAnswer:
+          typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : "",
+      };
+    } catch (err) {
+      ToggleLogs.log(
+        "Error generating step checkpoints: " + err,
+        LogLevel.CRITICAL,
+      );
+      return {
+        targetVariable: "x",
+        startEquation: substitutedEquation,
+        steps: [],
+        finalAnswer: "",
+      };
+    }
+  }
+
+  public static async gradeStepAttempt(params: {
+    startEquation: string;
+    targetVariable: string;
+    stepInstruction: string;
+    expectedCheckpoint: string;
+    studentInput: string;
+  }): Promise<{ correct: boolean; feedback: string }> {
+    try {
+      const prompt = `You are grading ONE checkpoint step of a multi-step math solution.
 
 Start equation: "${params.startEquation}"
 Target variable: "${params.targetVariable}"
@@ -648,6 +784,7 @@ Student input: "${params.studentInput}"
 Decide if the student's input is mathematically equivalent to the expected checkpoint and matches the step intent.
 - This must work for any topic: linear equations, systems (comma-separated equations), inequalities, quadratics, rational/radical equations.
 - Accept equivalent rearrangements and harmless formatting differences (e.g., "x = 5" vs "5 = x", reordering equations in a system).
+- For comma-separated equations (systems): the ORDER of equations does NOT matter. Treat as a set: "w + 20 = 0, w - 15 = 0" is the same as "w - 15 = 0, w + 20 = 0". Accept spacing/formatting variations (e.g. "w+20=0, w-15=0").
 - For inequalities: direction matters.
 - Prefer the specific checkpoint for this step; if the student skips ahead, mark incorrect unless their statement is exactly equivalent to the expected checkpoint.
 
@@ -656,73 +793,158 @@ Return ONLY valid JSON:
 
 If incorrect, feedback should be short and helpful, and should NOT reveal every remaining step.`;
 
-            const response = await ai.chat.completions.create({
-                model: "gpt-4o-mini",
-                messages: [
-                    {
-                        role: "system",
-                        content: "You are a strict but helpful math grader. Always return valid JSON.",
-                    },
-                    { role: "user", content: prompt },
-                ],
-                response_format: { type: "json_object" },
-                temperature: 0.2,
-            });
+      const response = await ai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a strict but helpful math grader. Always return valid JSON.",
+          },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
 
-            const text = response.choices[0]?.message?.content ?? "{}";
-            ToggleLogs.log(`Raw grade step response: ${text}`, LogLevel.DEBUG);
-            
-            let parsed: any;
-            try {
-                // Try to clean the response if it has markdown code blocks
-                let cleanedText = text.trim();
-                if (cleanedText.startsWith('```json')) {
-                    cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-                } else if (cleanedText.startsWith('```')) {
-                    cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-                }
-                
-                parsed = JSON.parse(cleanedText);
-            } catch (parseErr: any) {
-                ToggleLogs.log(`Failed to parse grade step JSON: ${parseErr?.message || parseErr}. Raw text: ${text}`, LogLevel.CRITICAL);
-                return { correct: false, feedback: "Could not grade this step. Please try again." };
-            }
-            
-            // Validate response structure
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-                ToggleLogs.log(`Invalid parsed grade step response: ${JSON.stringify(parsed)}`, LogLevel.CRITICAL);
-                return { correct: false, feedback: "Could not grade this step. Please try again." };
-            }
-            
-            return {
-                correct: Boolean(parsed.correct),
-                feedback: typeof parsed.feedback === "string" ? parsed.feedback : (Boolean(parsed.correct) ? "Correct." : "Incorrect."),
-            };
-        } catch (err) {
-            ToggleLogs.log("Error grading step attempt: " + err, LogLevel.CRITICAL);
-            return { correct: false, feedback: "Could not grade this step. Please try again." };
+      const text = response.choices[0]?.message?.content ?? "{}";
+      ToggleLogs.log(`Raw grade step response: ${text}`, LogLevel.DEBUG);
+
+      let parsed: any;
+      try {
+        // Try to clean the response if it has markdown code blocks
+        let cleanedText = text.trim();
+        if (cleanedText.startsWith("```json")) {
+          cleanedText = cleanedText
+            .replace(/^```json\s*/, "")
+            .replace(/\s*```$/, "");
+        } else if (cleanedText.startsWith("```")) {
+          cleanedText = cleanedText
+            .replace(/^```\s*/, "")
+            .replace(/\s*```$/, "");
         }
+
+        parsed = JSON.parse(cleanedText);
+      } catch (parseErr: any) {
+        ToggleLogs.log(
+          `Failed to parse grade step JSON: ${parseErr?.message || parseErr}. Raw text: ${text}`,
+          LogLevel.CRITICAL,
+        );
+        return {
+          correct: false,
+          feedback: "Could not grade this step. Please try again.",
+        };
+      }
+
+      // Validate response structure
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        ToggleLogs.log(
+          `Invalid parsed grade step response: ${JSON.stringify(parsed)}`,
+          LogLevel.CRITICAL,
+        );
+        return {
+          correct: false,
+          feedback: "Could not grade this step. Please try again.",
+        };
+      }
+
+      return {
+        correct: Boolean(parsed.correct),
+        feedback:
+          typeof parsed.feedback === "string"
+            ? parsed.feedback
+            : Boolean(parsed.correct)
+              ? "Correct."
+              : "Incorrect.",
+      };
+    } catch (err) {
+      ToggleLogs.log("Error grading step attempt: " + err, LogLevel.CRITICAL);
+      return {
+        correct: false,
+        feedback: "Could not grade this step. Please try again.",
+      };
     }
+  }
 
-    /**
-     * Validates that step checkpoints are mathematically correct transformations
-     * Uses AI to verify each step is a valid transformation from the previous step
-     */
-    private static async validateStepCheckpoints(
-        startEquation: string,
-        steps: { instruction: string; checkpoint: string }[]
-    ): Promise<{ instruction: string; checkpoint: string }[]> {
-        if (steps.length === 0) return [];
+  public static async generateMistakeSummary(
+    problem: string,
+    mistakes: {
+      stepInstruction: string;
+      expectedCheckpoint: string;
+      studentInput: string;
+      feedback: string;
+    }[],
+  ): Promise<string> {
+    if (!mistakes.length) return "";
+    try {
+      const list = mistakes
+        .map(
+          (m, i) =>
+            `${i + 1}. Step: "${m.stepInstruction}". Expected: "${m.expectedCheckpoint}". Student wrote: "${m.studentInput}". Grader feedback: ${m.feedback}`,
+        )
+        .join("\n");
+      const problemContext = problem.trim();
+      const prompt = `You are a supportive math tutor. A student just finished the following math problem (they got there in the end). While working through it, they made the mistakes listed below where the grader marked them incorrect.
 
-        const validatedSteps: { instruction: string; checkpoint: string }[] = [];
-        let previousEquation = startEquation;
+THE EXACT PROBLEM THE STUDENT SOLVED:
+"""
+${problemContext}
+"""
 
-        for (let i = 0; i < steps.length; i++) {
-            const step = steps[i];
-            
-            try {
-                // Use AI to verify this step is a valid transformation
-                const prompt = `Verify this algebra step is mathematically correct:
+MISTAKES THEY MADE (step, expected result, what they wrote, grader feedback):
+${list}
+
+Write a short, friendly summary (2–4 paragraphs) for the student that:
+1. Uses the context of this exact problem—reference the specific setup, numbers, or type of problem when explaining why these mistakes might have happened (e.g. "In this problem you had to…", "When you were solving for x here…").
+2. Explains common themes in why these mistakes occurred (e.g. sign errors, wrong operation, order of operations, misreading the step) in light of this problem.
+3. Gives one or two concrete tips tied to this problem type to avoid similar mistakes next time.
+4. Keeps tone encouraging and growth-oriented; do not list the mistakes again in full.
+
+Return plain text only, no JSON or markdown headers.`;
+      const response = await ai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a supportive math tutor. Return only the summary text, no JSON or labels.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.4,
+      });
+      const summary =
+        response.choices[0]?.message?.content?.trim() ||
+        "Good job finishing the problem. Review the step feedback above to see where things went wrong.";
+      return summary;
+    } catch (err) {
+      ToggleLogs.log(
+        "Error generating mistake summary: " + err,
+        LogLevel.CRITICAL,
+      );
+      return "";
+    }
+  }
+
+  /**
+   * Validates that step checkpoints are mathematically correct transformations
+   * Uses AI to verify each step is a valid transformation from the previous step
+   */
+  private static async validateStepCheckpoints(
+    startEquation: string,
+    steps: { instruction: string; checkpoint: string }[],
+  ): Promise<{ instruction: string; checkpoint: string }[]> {
+    if (steps.length === 0) return [];
+
+    const validatedSteps: { instruction: string; checkpoint: string }[] = [];
+    let previousEquation = startEquation;
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+
+      try {
+        // Use AI to verify this step is a valid transformation
+        const prompt = `Verify this algebra step is mathematically correct:
 
 Previous equation: "${previousEquation}"
 Step instruction: "${step.instruction}"
@@ -737,77 +959,85 @@ Is the checkpoint a valid mathematical transformation from the previous equation
 Return ONLY valid JSON:
 { "isValid": true/false, "reason": "brief explanation" }`;
 
-                const response = await ai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    messages: [
-                        {
-                            role: "system",
-                            content: "You are a strict math validator. Verify algebraic transformations are correct. Always return valid JSON.",
-                        },
-                        { role: "user", content: prompt },
-                    ],
-                    response_format: { type: "json_object" },
-                    temperature: 0.1,
-                });
+        const response = await ai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a strict math validator. Verify algebraic transformations are correct. Always return valid JSON.",
+            },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        });
 
-                const text = response.choices[0]?.message?.content ?? "{}";
-                const validation = JSON.parse(text);
+        const text = response.choices[0]?.message?.content ?? "{}";
+        const validation = JSON.parse(text);
 
-                if (Boolean(validation.isValid)) {
-                    validatedSteps.push(step);
-                    previousEquation = step.checkpoint;
-                } else {
-                    ToggleLogs.log(
-                        `Step ${i + 1} failed validation: ${validation.reason || "Invalid transformation"}`,
-                        LogLevel.WARN
-                    );
-                    // Stop at first invalid step
-                    break;
-                }
-            } catch (err) {
-                ToggleLogs.log(`Error validating step ${i + 1}: ${err}`, LogLevel.WARN);
-                // If validation fails, include the step but log a warning
-                validatedSteps.push(step);
-                previousEquation = step.checkpoint;
-            }
+        if (Boolean(validation.isValid)) {
+          validatedSteps.push(step);
+          previousEquation = step.checkpoint;
+        } else {
+          ToggleLogs.log(
+            `Step ${i + 1} failed validation: ${validation.reason || "Invalid transformation"}`,
+            LogLevel.WARN,
+          );
+          // Stop at first invalid step
+          break;
         }
-
-        return validatedSteps;
+      } catch (err) {
+        ToggleLogs.log(`Error validating step ${i + 1}: ${err}`, LogLevel.WARN);
+        // If validation fails, include the step but log a warning
+        validatedSteps.push(step);
+        previousEquation = step.checkpoint;
+      }
     }
 
-    /**
-     * Synchronous version that validates steps without AI (faster, less thorough)
-     * Checks basic syntax and structure
-     */
-    private static validateStepCheckpointsSync(
-        startEquation: string,
-        steps: { instruction: string; checkpoint: string }[]
-    ): { instruction: string; checkpoint: string }[] {
-        if (steps.length === 0) return [];
+    return validatedSteps;
+  }
 
-        const validatedSteps: { instruction: string; checkpoint: string }[] = [];
-        let previousEquation = startEquation;
+  /**
+   * Synchronous version that validates steps without AI (faster, less thorough)
+   * Checks basic syntax and structure
+   */
+  private static validateStepCheckpointsSync(
+    startEquation: string,
+    steps: { instruction: string; checkpoint: string }[],
+  ): { instruction: string; checkpoint: string }[] {
+    if (steps.length === 0) return [];
 
-        for (const step of steps) {
-            // Basic validation: checkpoint should contain = or inequality sign
-            const hasEquals = step.checkpoint.includes("=") || /[<>≤≥]/.test(step.checkpoint);
-            if (!hasEquals) {
-                ToggleLogs.log(`Step checkpoint missing = or inequality: ${step.checkpoint}`, LogLevel.WARN);
-                break;
-            }
+    const validatedSteps: { instruction: string; checkpoint: string }[] = [];
+    let previousEquation = startEquation;
 
-            // Check for balanced parentheses
-            const openParens = (step.checkpoint.match(/\(/g) || []).length;
-            const closeParens = (step.checkpoint.match(/\)/g) || []).length;
-            if (openParens !== closeParens) {
-                ToggleLogs.log(`Step checkpoint has unbalanced parentheses: ${step.checkpoint}`, LogLevel.WARN);
-                break;
-            }
+    for (const step of steps) {
+      // Basic validation: checkpoint should contain = or inequality sign
+      const hasEquals =
+        step.checkpoint.includes("=") || /[<>≤≥]/.test(step.checkpoint);
+      if (!hasEquals) {
+        ToggleLogs.log(
+          `Step checkpoint missing = or inequality: ${step.checkpoint}`,
+          LogLevel.WARN,
+        );
+        break;
+      }
 
-            validatedSteps.push(step);
-            previousEquation = step.checkpoint;
-        }
+      // Check for balanced parentheses
+      const openParens = (step.checkpoint.match(/\(/g) || []).length;
+      const closeParens = (step.checkpoint.match(/\)/g) || []).length;
+      if (openParens !== closeParens) {
+        ToggleLogs.log(
+          `Step checkpoint has unbalanced parentheses: ${step.checkpoint}`,
+          LogLevel.WARN,
+        );
+        break;
+      }
 
-        return validatedSteps;
+      validatedSteps.push(step);
+      previousEquation = step.checkpoint;
     }
+
+    return validatedSteps;
+  }
 }

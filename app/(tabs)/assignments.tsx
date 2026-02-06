@@ -2,6 +2,7 @@ import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import { validateEquationSyntax, validateEquationTemplate } from "@/utilities/equationValidator";
 import { useEffect, useRef, useState } from "react";
+import Pin, {PinData} from "@/components/Pin";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -57,6 +58,16 @@ type StepCheckpoint = {
   checkpoint: string;
 };
 
+type CompletedStep = {
+  stepIndex: number;
+  instruction: string;
+  correct: string;
+  response?: string;
+  timestamp: string;
+}
+
+
+
 export default function MathLearningPlatform() {
   const { selectedTopics } = useSubjects();
   const [activeTab, setActiveTab] = useState<"practice" | "assignments">(
@@ -99,6 +110,12 @@ export default function MathLearningPlatform() {
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
   const [showCheatSheet, setShowCheatSheet] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState<CompletedStep[]>([]);
+  const [expandedStep, setExpandedStep] = useState<Record<number, boolean>>({});
+  const [pinned, setPinned] = useState<PinData | null>(null);
+  const [pinVisibility, setPinVisibility] = useState(false);
+
+
 
   // Assignment Tab State
   const [role, setRole] = useState<"teacher" | "student">("teacher");
@@ -273,7 +290,10 @@ export default function MathLearningPlatform() {
     setPracticeFeedback(null);
     setAnswerCorrect(null);
     setCorrectAnswer(null);
+    setPinned(null);
+    setPinVisibility(true);
     resetHints();
+   
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
@@ -340,6 +360,8 @@ export default function MathLearningPlatform() {
       setAnswerCorrect(null);
       setCorrectAnswer(null);
       resetHints();
+      setPinned(null);
+      setPinVisibility(true);
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -453,6 +475,9 @@ export default function MathLearningPlatform() {
       setStepFeedbackText(null);
       setStepFeedbackCorrect(null);
       setStepAttemptsByIndex({});
+      setCompletedSteps([]);
+      setExpandedStep({});
+
       return;
     }
 
@@ -468,6 +493,8 @@ export default function MathLearningPlatform() {
         setStepFeedbackText(null);
         setStepFeedbackCorrect(null);
         setStepAttemptsByIndex({});
+        setCompletedSteps([]);
+        setExpandedStep({});
 
         const resp = await fetch(`${API_BASE_URL}/api/openai/step-checkpoints`, {
           method: "POST",
@@ -517,6 +544,12 @@ export default function MathLearningPlatform() {
     };
   }, [problem, equationData?.substitutedEquation]);
 
+
+  // testing state actually working/updating before UI build
+  useEffect(() => {
+    console.log(" Steps :", completedSteps);
+  }, [completedSteps])
+
   const submitStepAttempt = async () => {
     if (!stepData || !stepData.steps?.length) return;
     if (currentStepIndex >= stepData.steps.length) return;
@@ -552,6 +585,60 @@ export default function MathLearningPlatform() {
       const feedback = typeof data?.feedback === "string" ? data.feedback : (correct ? "Correct." : "Incorrect.");
 
       if (correct) {
+
+        const timestamp = new Date().toLocaleString();
+
+        const stepRecord: CompletedStep = {
+          stepIndex: currentStepIndex,
+          instruction: step.instruction,
+          correct: practiceAnswer,
+          response: feedback,
+          timestamp: timestamp,
+
+        }
+
+        setCompletedSteps((prevStep) => {
+          const nextStep: CompletedStep[] =[];
+        
+
+        // I'm just adding this copying loop in to avoid any duplicates in case 
+          // there's an accidental redo of the logging
+        let i = 0;
+        for (i; i < prevStep.length; i++) {
+
+          const prevRecord = prevStep[i];
+          const prevRecordIndex = prevRecord.stepIndex;
+
+          let sameStep = false;
+          if (prevRecordIndex === currentStepIndex){
+            sameStep = true;
+          }
+
+          if (!sameStep) {
+            nextStep.push(prevRecord);
+          }
+    }
+          nextStep.push(stepRecord);
+
+
+          nextStep.sort((i, j) => {
+
+            if (i.stepIndex < j.stepIndex) {
+              return -1;
+            }
+            if (i.stepIndex > j.stepIndex) {
+              return 1;
+            }
+
+
+            return 0;
+          })
+
+          return nextStep;
+
+
+      })
+    
         setStepFeedbackCorrect(true);
         setStepFeedbackText(feedback);
         setLastCorrectStepIndex(currentStepIndex);
@@ -691,13 +778,20 @@ export default function MathLearningPlatform() {
   const getSubmission = (assignmentId: number) => {
     return submissions.find((s) => s.assignmentId === assignmentId);
   };
+  
 
   const renderPracticeTab = () => (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+
+    <div style={styles.practiceOuterContainer}>
+      <div style={styles.practiceLayout}>
+      <div style={styles.practiceCentralContent}>
+          <div style={styles.pinMain}>
+
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Equation Practice</ThemedText>
       </ThemedView>
 
+    
       <ThemedView style={styles.inputContainer}>
         <ThemedText style={styles.inputLabel}>
           Enter Your Math Problem:
@@ -848,6 +942,102 @@ export default function MathLearningPlatform() {
             </ThemedView>
           )}
 
+
+          {completedSteps.length > 0 && (
+
+
+            <ThemedView style={styles.completedStepsContainer}>
+              <ThemedText style={styles.completedStepsHeader}>
+                 Previous Work:
+              </ThemedText>
+            
+
+            <ThemedText style={styles.completedStepsTitle}>
+              These Steps Are Correct. Expand to see more Details...
+            </ThemedText>
+
+
+            {completedSteps.map((stepItem) => {
+              const expanded = expandedStep[stepItem.stepIndex] === true;
+
+              return (
+                <div key={stepItem.stepIndex} style={styles.completedRow}>
+                  <div style={styles.completedTopRow}>  
+
+
+
+                    <ThemedText style={styles.completedStepBigLabel}>
+                      Step {stepItem.stepIndex + 1}
+                    </ThemedText>
+                    <ThemedText style={styles.completedStepSmallLabel}>
+                      Correct: {stepItem.correct}
+                    </ThemedText>
+                    <ThemedText style={styles.completedStepSmallLabel}>
+                      Completed At: {stepItem.timestamp}
+                    </ThemedText>
+
+                </div>
+
+                    <button type="button"
+                            style={styles.completedButton}
+                            onClick={() => {
+
+                              setExpandedStep((prev) =>{
+                                const next: Record<number, boolean> = {}
+
+                                for (const i in prev) {
+                                  next[Number(i)] = prev[Number(i)];
+                                }
+
+                                next[stepItem.stepIndex] = !prev[stepItem.stepIndex];
+                                return next;
+                              })
+
+                              
+                            }}
+
+                          >
+                            {expanded ? 'Hide' : 'View'}
+                          </button>
+                       
+                      
+          {/* Expanded part! */}
+
+                      {expanded && (
+                        <div style={styles.expandedMainContainer}>
+                          
+                          <ThemedText style={styles.expandedHeader}>
+                            Instruction: 
+                          </ThemedText>
+                          <ThemedText style={styles.expandedText}>
+                            {stepItem.instruction}
+                          </ThemedText>
+
+                        
+                        {stepItem.response && (
+                          <>
+
+                          <ThemedText style={styles.expandedLabel}>
+                            Feedback: 
+                          </ThemedText>
+                          <ThemedText style={styles.expandedText}>
+                            {stepItem.response}
+                          </ThemedText>
+                          
+                      </>
+
+                      )}
+
+
+                  </div>
+                )}
+             </div>
+              )
+            })}
+    </ThemedView>
+          )}
+          {/* Continue answer box for the student ^^^ */}
+
           <ThemedView style={styles.answerSection}>
             <ThemedText style={styles.answerLabel}>
               {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
@@ -856,9 +1046,33 @@ export default function MathLearningPlatform() {
             </ThemedText>
 
             {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length && (
-              <ThemedText style={styles.stepInstruction}>
+
+              <div style={styles.stepInstructionRow}>
+
+                <ThemedText style={styles.stepInstruction}>
                 {stepData.steps[currentStepIndex]?.instruction}
               </ThemedText>
+
+                <button type="button"
+                  style={styles.pinConfirm}
+                  onClick={() => {
+
+                    const instruction = stepData.steps[currentStepIndex]?.instruction || "";
+
+                setPinVisibility(true);
+                setPinned({
+                  title: `Step ${currentStepIndex + 1}`,
+                  body: instruction,
+                  typeOfInfo: "step",
+                })
+         }}
+
+        >
+          Pin Step
+        </button>
+
+              </div>
+
             )}
 
             <ThemedText style={styles.inputHint}>
@@ -921,10 +1135,33 @@ export default function MathLearningPlatform() {
               </ThemedText>
             )}
 
+
+
             {currentHint && (
               <div style={styles.hintBox}>
                 <div style={styles.hintHeader}>
                   <span style={styles.hintTitle}>Hint {hintLevel}/3</span>
+
+                  <div style={styles.hintHeaderButtons}>
+                    <button type="button"
+                      onClick={() => {
+
+                        setPinVisibility(true);
+                        setPinned({
+                          title: `Hint ${hintLevel}/3`,
+                          body: currentHint,
+                          typeOfInfo: "hint",
+
+                        })
+                    }}
+                        style = {styles.pinHintButton}
+                    >
+                      Pin
+                    </button>
+
+
+                  </div>
+
                   <button onClick={resetHints} style={styles.closeHintButton}>
                     X
                   </button>
@@ -932,6 +1169,7 @@ export default function MathLearningPlatform() {
                 <p style={styles.hintText}>{currentHint}</p>
               </div>
             )}
+
 
             <div style={styles.answerButtons}>
               <button
@@ -1026,6 +1264,31 @@ export default function MathLearningPlatform() {
         </ThemedView>
       )}
     </div>
+    </div>
+
+    <div style={styles.practiceRightGap}>
+      
+      {pinVisibility && (
+      <Pin 
+        pinned={pinned} 
+        clear={() => setPinned(null)} 
+        dismiss={() => {
+          setPinned(null);
+          setPinVisibility(false);
+        }}
+        
+        />
+
+      )}
+
+
+      </div>
+    
+  </div>
+  </div>
+
+
+
   );
 
   const renderAssignmentsTab = () => {
@@ -1345,31 +1608,36 @@ const styles: { [key: string]: React.CSSProperties } = {
   tabContainer: {
     display: "flex",
     gap: 12,
-    borderBottom: "2px solid #e5e7eb",
+    borderBottom: "1px solid rgba(167,139,250,0.18)",
     paddingBottom: 8,
     maxWidth: 900,
     margin: "0 auto",
     position: "sticky",
     top: 0,
     zIndex: 10,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#f6f4ff",
   },
+
   tab: {
     padding: "12px 24px",
     backgroundColor: "transparent",
-    border: "none",
-    borderRadius: "8px 8px 0 0",
+    border: "1px solid rgba(167,139,250,0.2)",
+    borderRadius: "12px 12px 0 0",
     cursor: "pointer",
     transition: "all 0.2s",
-  },
-  activeTab: {
-    backgroundColor: "#2563eb",
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: "600",
     color: "#6b7280",
   },
+  activeTab: {
+    backgroundColor: "#6B46C1",
+    borderColor: "rgba(167,139,250,0.4)",
+  },
+
+  tabText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6b7280",
+  },
+
   activeTabText: {
     color: "white",
   },
@@ -1377,23 +1645,36 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: 24,
   },
   inputContainer: {
+    backgroundColor: "#ffffff",
+    border: "1px solid rgba(167,139,250,0.2)",
+    borderRadius: 16,
+    padding: 12,
     marginBottom: 16,
+    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
     gap: 8,
   },
   inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
     marginBottom: 8,
+
+    color: "#6B46C1",
+    display: "block",
+
+
   },
   textInput: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "rgba(128, 128, 128, 0.3)",
+    borderColor: "rgba(167,139,250,0.3)",
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    backgroundColor: "rgba(128, 128, 128, 0.05)",
+    backgroundColor: "#ffffff",
     fontFamily: "inherit",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+
+
   },
   inputErrorText: {
     display: "block",
@@ -1404,7 +1685,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   characterCount: {
     fontSize: 12,
     opacity: 0.6,
+    color: "#6b7280",
     textAlign: "right",
+    marginTop: 5,
   },
   buttonRow: {
     display: "flex",
@@ -1413,19 +1696,22 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   submitButton: {
     flex: 1,
-    backgroundColor: "#34C759",
+    backgroundColor: "#6B46C1",
     padding: "12px 16px",
     borderRadius: 8,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.45)",
     cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
   },
   generateButton: {
     flex: 1,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#A78BFA",
     padding: "12px 16px",
     borderRadius: 8,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.45)",
     cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -1434,7 +1720,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   buttonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "800",
   },
   centerContent: {
     display: "flex",
@@ -1448,7 +1734,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: 40,
     height: 40,
     border: "4px solid #e5e7eb",
-    borderTop: "4px solid #2563eb",
+    borderTop: "4px solid #6B46C1",
     borderRadius: "50%",
     animation: "spin 1s linear infinite",
   },
@@ -1458,15 +1744,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     opacity: 0.7,
   },
   problemBox: {
-    backgroundColor: "rgba(128, 128, 128, 0.1)",
-    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     padding: 16,
     marginBottom: 16,
-    border: "1px solid rgba(128, 128, 128, 0.2)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
   },
   problemText: {
     fontSize: 16,
     lineHeight: 1.5,
+    color: "#1d1d1f",
   },
   equationContainer: {
     gap: 16,
@@ -1474,36 +1762,46 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   equationLabel: {
     marginBottom: 8,
+    display: "block",
+    color: "#6B46C1",
+    fontWeight: "700",
+
   },
   equationBox: {
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
-    borderRadius: 12,
+    backgroundColor: "#faf5ff",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    border: "1px solid rgba(0, 122, 255, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
+
+
   },
   equationTitle: {
     fontSize: 14,
     fontWeight: "600",
+    color: "#6B46C1",
     marginBottom: 8,
     opacity: 0.8,
   },
   variablesBox: {
-    backgroundColor: "rgba(255, 149, 0, 0.1)",
-    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    border: "1px solid rgba(255, 149, 0, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
   },
   variableItem: {
     paddingTop: 4,
     paddingBottom: 4,
   },
   saveButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: "#6B46C1",
     padding: "12px 32px",
     borderRadius: 8,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     cursor: "pointer",
     display: "block",
     margin: "16px auto",
@@ -1514,38 +1812,72 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: "center",
   },
   stepSection: {
-    backgroundColor: "rgba(0, 122, 255, 0.06)",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    border: "1px solid rgba(0, 122, 255, 0.18)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 6px 15px rgba(0,0,0,0.06)",
   },
   stepTitle: {
     display: "block",
     marginBottom: 8,
+    fontWeight: "800",
+    color: "#6B46C1",
+
   },
+
   stepMeta: {
     display: "block",
     fontSize: 13,
     opacity: 0.75,
     marginBottom: 8,
+    color: "#6b7280",
   },
+
   stepInstruction: {
     display: "block",
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 8,
+    color: "#1d1d1f",
   },
+  stepInstructionRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 10,
+  },
+  pinConfirm: {
+
+    fontSize: 14,
+    fontWeight: "700",
+
+    
+    borderRadius: 12,
+    border: "1px solid rgba(167, 139, 250, 0.35)",
+    backgroundColor: "1px solid rgba(167, 139, 250, 0.35)",
+    padding: "8px",
+
+
+    alignSelf: "flex-start",
+    cursor: "pointer",
+    color: "#6B46C1",
+
+  },
+
   stepAttempts: {
     fontSize: 12,
     opacity: 0.7,
     marginTop: 8,
+    color:"#6b7280",
   },
   roleToggle: {
     display: "flex",
     gap: 8,
     marginBottom: 24,
-    backgroundColor: "#e0f2fe",
+    backgroundColor: "#f3e8ff",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
     borderRadius: 8,
     padding: 4,
   },
@@ -1557,6 +1889,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
     backgroundColor: "transparent",
   },
+
+
   roleButtonActive: {
     backgroundColor: "#2563eb",
   },
@@ -1570,17 +1904,30 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   subheading: {
     fontSize: 16,
-    color: "#4b5563",
+    color: "#6b7280",
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#6B46C1",
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rbga(0,0,0,0.06)",
     cursor: "pointer",
     width: "100%",
+  },
+
+  answerSection: {
+
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 15,
+    boxShadow: "0 6px 15px rgba(0,0,0,0.06)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+   
+    
   },
   listHeading: {
     fontSize: 20,
@@ -1632,7 +1979,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   backButton: {
     fontSize: 16,
-    color: "#2563eb",
+    color: "#6B46C1",
     fontWeight: "600",
     marginBottom: 16,
     backgroundColor: "transparent",
@@ -1701,7 +2048,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   confirmButton: {
     flex: 1,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#6B46C1",
     borderRadius: 8,
     padding: 12,
     border: "none",
@@ -1713,10 +2060,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   answerLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: "#6B46C1",
     marginTop: 12,
     marginBottom: 8,
   },
+
   inputHint: {
     fontSize: 13,
     color: "#6b7280",
@@ -1727,14 +2075,15 @@ const styles: { [key: string]: React.CSSProperties } = {
   answerInput: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "rgba(128, 128, 128, 0.3)",
-    borderRadius: 8,
+    borderColor: "rgba(167,139,250,0.3)",
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    backgroundColor: "rgba(128, 128, 128, 0.05)",
+    backgroundColor: "#ffffff",
     fontFamily: "inherit",
     resize: "vertical" as "vertical",
     marginBottom: 8,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
   },
   answerButtons: {
     display: "flex",
@@ -1743,36 +2092,40 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   submitAnswerButton: {
     flex: 1,
-    backgroundColor: "#34C759",
+    backgroundColor: "#6B46C1",
     borderRadius: 8,
     padding: 12,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
   cancelAnswerButton: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#ffffff",
     borderRadius: 8,
     padding: 12,
-    border: "1px solid rgba(128, 128, 128, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
   hintButton: {
     flex: "1 1 auto",
     minWidth: 120,
-    backgroundColor: "#FF9500",
+    backgroundColor: "#A78BFA",
     borderRadius: 8,
     padding: 12,
-    border: "none",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
   hintBox: {
-    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    backgroundColor: "#faf5ff",
     borderRadius: 8,
     padding: 16,
     marginTop: 16,
     marginBottom: 16,
-    border: "1px solid rgba(255, 149, 0, 0.3)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     maxHeight: 220,
     overflowY: "auto",
     WebkitOverflowScrolling: "touch",
@@ -1782,6 +2135,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+  },
+  hintHeaderButtons: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+
+
   },
   hintTitle: {
     fontSize: 14,
@@ -1806,10 +2166,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     wordBreak: "break-word" as const,
   },
   cancelButtonText: {
-    color: "#6b7280",
+    color: "#6B46C1",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "800",
   },
+
   feedbackSubmitted: {
     color: "#16a34a",
     fontSize: 14,
@@ -1846,7 +2207,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   page: {
     height: "100vh",
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#f6f4ff",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -1858,18 +2219,239 @@ const styles: { [key: string]: React.CSSProperties } = {
     position: "sticky" as const,
     top: 0,
     zIndex: 10,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#f6f4ff",
   },
   scrollContainer: {
     flex: 1,
     overflowY: "auto",
-    overflowX: "auto",
+    overflowX: "hidden",
     padding: 24,
     paddingTop: 0,
     WebkitOverflowScrolling: "touch",
     overscrollBehavior: "contain",
     boxSizing: "border-box",
   },
+
+  completedStepsContainer: {
+    backgroundColor: "#ffffff",
+    padding: 16, 
+    marginBottom: 16,
+    border: "1px solid rgba(167,139,250,0.18)",
+    borderRadius: 14,
+
+    boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
+  
+
+    maxHeight: 300,
+    overflowY: "auto",
+    WebkitOverflowScrolling: 'touch',
+
+  },
+  completedStepsHeader: {
+    display: "block",
+    fontSize: 20,
+    lineHeight: "24px",
+    fontWeight: "700",
+    marginBottom: 5,
+    color: "#6B46C1",
+
+
+  },
+  completedStepsTitle: {
+    display: "block",
+    fontSize: 13,
+    fontStyle: "normal",
+    lineHeight: 1.4,
+    color: "#86868b",
+  
+
+    marginBottom: 14,
+
+
+
+  },
+  completedRow: {
+    backgroundColor:"#faf5ff",
+    borderRadius: 14,
+    border: "2px solid rgba(167,139, 250,0.35)",
+    padding: 14,
+    marginBottom: 10,
+  
+    boxShadow: "0 1px 3px rgba(167,139,250,0.1)",
+
+  },
+  completedTopRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 6,
+
+  },
+  completedStepSmallLabel: {
+    display: "block",
+    fontSize: 12,
+    opacity: 0.9,
+    color: "#86868b",
+    marginBottom: 2,
+
+  },
+  completedStepBigLabel: {
+    display: "block",
+    fontSize: 16,
+    color: "#1d1d1f",
+    fontWeight: "700",
+  
+    marginBottom: 2,
+
+  },
+  completedButton: {
+
+    marginTop: 8,
+    borderRadius: 12,
+    border: "1.5px solid #A78BFA",
+    padding: "8px 12px",
+    cursor: "pointer",
+    backgroundColor: "#ffffff",
+    color: "#6B46C1",
+    fontSize: 12,
+    fontWeight: "500",
+    
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+
+  
+   
+  },
+
+
+
+
+  expandedMainContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: "1px solid rgba(167,139, 250,0.2)",
+
+    maxHeight: 120,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingRight: 10,
+
+
+  },
+  expandedHeader: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 5,
+    color: "#6B46C1",
+
+  },
+  expandedLabel: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 5,
+    color: "#6B46C1",
+
+  },
+  expandedText: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 12,
+
+    color: "#1d1d1f",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+
+    lineHeight: 1.5,
+    
+
+  },
+  pinContainer: {
+    position: "sticky",
+    marginBottom: 15,
+
+
+    top: 15,
+    zIndex: 6, 
+
+  },
+  pinHintButton: {
+
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B46C1",
+
+    border: "1px solid rgba(167,139,250,0.35)",
+    borderRadius: 10,
+    backgroundColor: "1px solid rgba(167,139,250,0.15)",
+    padding: "8px",
+
+    cursor: "pointer",
+
+    
+
+
+  },
+  pinBox: {
+    width: 220,
+    height: 220,
+  },
+
+  pinMain: {
+    minWidth: 0,
+  },
+  practiceLayout: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 900px) 260px",
+    justifyContent: "center",
+    columnGap: 24,
+    alignItems: "start",
+  },
+
+  practiceRightGap: {
+    position: "sticky",
+    top: 120,
+    alignSelf: "start",
+    zIndex: 20,
+
+
+    minWidth: 0,
+    paddingLeft: 90,
+    boxSizing: "border-box",
+    overflow: "visible",
+    
+
+  },
+  pinSticky: {
+    position: "sticky",
+    top: 120,
+    zIndex: 20,
+    width: "100%",
+    pointerEvents: "auto",
+    alignSelf: "start",
+  },
+
+  
+
+  practiceOuterContainer: {
+    position: "relative",
+    width: "100%",
+  },
+  practiceCentralContent: {
+    maxWidth: 900,
+    width: "100%",
+    minWidth: 0,
+  },
+ 
+  pinClick: {
+    pointerEvents: "auto",
+  },
+
+
+
+
+
 
   
 };

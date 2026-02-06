@@ -4,6 +4,7 @@ import {
   validateEquationSyntax,
   validateEquationTemplate,
 } from "@/utilities/equationValidator";
+import { getTopicById } from "@/utilities/topicsLoader";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
@@ -75,6 +76,11 @@ export default function StudyPage() {
   >(null);
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
+  const [currentProblemTopicIds, setCurrentProblemTopicIds] = useState<
+    string[]
+  >([]);
+  const [currentProblemCategoryName, setCurrentProblemCategoryName] =
+    useState<string | null>(null);
 
   // Checkpoint/Step-by-step state
   const [stepData, setStepData] = useState<{
@@ -94,12 +100,40 @@ export default function StudyPage() {
   const [stepAttemptsByIndex, setStepAttemptsByIndex] = useState<
     Record<number, number>
   >({});
+  const [checkingBypass, setCheckingBypass] = useState(false);
+  const [mistakesCollected, setMistakesCollected] = useState<
+    Array<{
+      stepInstruction: string;
+      expectedCheckpoint: string;
+      studentInput: string;
+      feedback: string;
+    }>
+  >([]);
+  const [mistakeSummary, setMistakeSummary] = useState<string | null>(null);
+  const [mistakeSummaryLoading, setMistakeSummaryLoading] = useState(false);
 
   // Hint state
   const [currentHint, setCurrentHint] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState<number>(0);
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
+
+  // Chat help modal
+  const [showChatModal, setShowChatModal] = useState(false);
+
+  const getAreasToWorkOn = (topicIds: string[]): string => {
+    if (topicIds.length === 0) return "";
+    const parts = new Set<string>();
+    for (const id of topicIds) {
+      const result = getTopicById(id);
+      if (result?.category?.name && result?.topic?.name) {
+        parts.add(`${result.category.name}: ${result.topic.name}`);
+      } else if (result?.category?.name) {
+        parts.add(result.category.name);
+      }
+    }
+    return Array.from(parts).join(", ");
+  };
 
   const validateInput = (text: string): boolean => {
     setInputError(null);
@@ -167,6 +201,101 @@ export default function StudyPage() {
       console.error("Error normalizing answer:", e);
     }
     return null;
+  };
+
+  const parseFinalAnswerValue = (finalAnswer: string): number | null => {
+    if (!finalAnswer?.trim()) return null;
+    const trimmed = finalAnswer.trim();
+    const parts = trimmed.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return normalizeAnswer(trimmed);
+  };
+
+  const parseCheckpointValue = (checkpoint: string): number | null => {
+    if (!checkpoint?.trim()) return null;
+    const parts = checkpoint.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return normalizeAnswer(checkpoint.trim());
+  };
+
+  const parseUserAnswerValue = (userInput: string): number | null => {
+    if (!userInput?.trim()) return null;
+    const asNumber = normalizeAnswer(userInput);
+    if (asNumber !== null) return asNumber;
+    const parts = userInput.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+
+  const isFinalAnswerMatch = (userInput: string): boolean => {
+    if (!stepData?.finalAnswer?.trim() || !userInput.trim()) return false;
+    const expected = parseFinalAnswerValue(stepData.finalAnswer);
+    const actual = parseUserAnswerValue(userInput);
+    if (expected === null || actual === null) return false;
+    return Math.abs(expected - actual) < 0.01;
+  };
+
+  const isFinalCheckpointMatch = (userInput: string): boolean => {
+    if (!stepData?.steps?.length || !userInput.trim()) return false;
+    const lastStep = stepData.steps[stepData.steps.length - 1];
+    const expected = parseCheckpointValue(lastStep.checkpoint);
+    const actual = parseUserAnswerValue(userInput);
+    if (expected === null || actual === null) return false;
+    return Math.abs(expected - actual) < 0.01;
+  };
+
+  const normalizeCommaSeparatedEquations = (s: string): string[] => {
+    return s
+      .split(",")
+      .map((p) => p.trim().replace(/\s+/g, ""))
+      .filter(Boolean)
+      .sort();
+  };
+
+  const isCommaSeparatedCheckpointMatch = (
+    expectedCheckpoint: string,
+    studentInput: string,
+  ): boolean => {
+    if (!expectedCheckpoint.includes(",") || !studentInput.includes(","))
+      return false;
+    const a = normalizeCommaSeparatedEquations(expectedCheckpoint);
+    const b = normalizeCommaSeparatedEquations(studentInput);
+    if (a.length !== b.length) return false;
+    return a.every((eq, i) => eq === b[i]);
+  };
+
+  const tryBypassByGradingFinalStep = async (
+    studentInput: string,
+  ): Promise<boolean> => {
+    if (!stepData?.steps?.length || !studentInput.trim()) return false;
+    const lastStep = stepData.steps[stepData.steps.length - 1];
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startEquation: stepData.startEquation,
+          targetVariable: stepData.targetVariable,
+          stepInstruction: lastStep.instruction,
+          expectedCheckpoint: lastStep.checkpoint,
+          studentInput,
+        }),
+      });
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      return Boolean(data?.correct);
+    } catch {
+      return false;
+    }
   };
 
   const checkAnswer = (studentAnswer: string): boolean => {
@@ -250,9 +379,14 @@ export default function StudyPage() {
     setAnswerCorrect(null);
     setCorrectAnswer(null);
     resetHints();
+    setMistakesCollected([]);
+    setMistakeSummary(null);
+    setMistakeSummaryLoading(false);
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
+    setCurrentProblemTopicIds([]);
+    setCurrentProblemCategoryName(null);
 
     setExtracting(true);
     try {
@@ -316,6 +450,11 @@ export default function StudyPage() {
       setAnswerCorrect(null);
       setCorrectAnswer(null);
       resetHints();
+      setMistakesCollected([]);
+      setMistakeSummary(null);
+      setMistakeSummaryLoading(false);
+      setCurrentProblemTopicIds([]);
+      setCurrentProblemCategoryName(null);
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -338,6 +477,15 @@ export default function StudyPage() {
 
       const fullProblem = data.problem || "No problem generated";
       setProblem(fullProblem);
+      if (topicIds.length > 0) {
+        setCurrentProblemTopicIds(topicIds);
+        setCurrentProblemCategoryName(null);
+      } else {
+        setCurrentProblemTopicIds([]);
+        setCurrentProblemCategoryName(
+          typeof data.categoryName === "string" ? data.categoryName : null,
+        );
+      }
 
       setExtracting(true);
       try {
@@ -531,6 +679,26 @@ export default function StudyPage() {
     setStepFeedbackCorrect(null);
     setPracticeFeedback(null);
 
+    if (isCommaSeparatedCheckpointMatch(step.checkpoint, practiceAnswer)) {
+      setStepFeedbackCorrect(true);
+      setStepFeedbackText("Correct.");
+      setLastCorrectStepIndex(currentStepIndex);
+      setPracticeAnswer("");
+      setPracticeFeedback("submitted");
+      const next = currentStepIndex + 1;
+      if (next >= stepData.steps.length) {
+        setCurrentStepIndex(stepData.steps.length);
+        if (stepData.finalAnswer) {
+          setStepFeedbackText(
+            `Correct. Finished. Final answer: ${stepData.finalAnswer}`,
+          );
+        }
+      } else {
+        setCurrentStepIndex(next);
+      }
+      return;
+    }
+
     try {
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
@@ -578,6 +746,14 @@ export default function StudyPage() {
           setCurrentStepIndex(next);
         }
       } else {
+        setMistakesCollected((prev) =>
+          prev.concat({
+            stepInstruction: step.instruction,
+            expectedCheckpoint: step.checkpoint,
+            studentInput: practiceAnswer,
+            feedback,
+          }),
+        );
         const rollbackTo = Math.max(lastCorrectStepIndex, 0);
         setStepFeedbackCorrect(false);
         setStepFeedbackText(
@@ -593,6 +769,46 @@ export default function StudyPage() {
       setPracticeFeedback("submitted");
     }
   };
+
+  useEffect(() => {
+    if (
+      !problem ||
+      !stepData ||
+      currentStepIndex < stepData.steps.length ||
+      mistakesCollected.length === 0 ||
+      mistakeSummary !== null
+    ) {
+      return;
+    }
+    let cancelled = false;
+    setMistakeSummaryLoading(true);
+    fetch(`${API_BASE_URL}/api/openai/mistake-summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ problem, mistakes: mistakesCollected }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load summary"))))
+      .then((data) => {
+        if (!cancelled && typeof data?.summary === "string") {
+          setMistakeSummary(data.summary);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMistakeSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setMistakeSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    problem,
+    stepData,
+    currentStepIndex,
+    mistakesCollected.length,
+    mistakeSummary,
+  ]);
 
   // Landing page view
   if (!showStudyInterface) {
@@ -644,6 +860,79 @@ export default function StudyPage() {
   // Study interface view
   return (
     <div style={styles.page}>
+      {/*chat help button*/}
+      <button
+        type="button"
+        style={styles.chatBubbleButton}
+        onClick={() => setShowChatModal(true)}
+        aria-label="Open help chat"
+      >
+        <Ionicons name="chatbubble-ellipses" size={26} color="#ffffff" />
+      </button>
+
+      {/* Chat help modal */}
+      {showChatModal && (
+        <div
+          style={styles.chatModalOverlay}
+          onClick={() => setShowChatModal(false)}
+          role="presentation"
+        >
+          <div
+            style={styles.chatModalContent}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Help chat"
+          >
+            <div style={styles.chatModalHeader}>
+              <div style={styles.chatModalHeaderLeft}>
+                <div style={styles.chatModalAvatar}>
+                  <Ionicons name="chatbubble-ellipses" size={20} color="#a78bfa" />
+                </div>
+                <div>
+                  <ThemedText type="subtitle" style={styles.chatModalTitle}>
+                    Help
+                  </ThemedText>
+                  <span style={styles.chatModalSubtitle}>Ask for guidance</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                style={styles.chatModalCloseButton}
+                onClick={() => setShowChatModal(false)}
+                aria-label="Close chat"
+              >
+                <Ionicons name="close" size={24} color="#1d1d1f" />
+              </button>
+            </div>
+            <div style={styles.chatModalMessages}>
+              <div style={styles.chatBubbleBot}>
+                <p style={styles.chatBubbleText}>
+                  Hi! Chat with me here when you need help. You’ll be able to ask
+                  questions and get guidance on your current problem soon.
+                </p>
+              </div>
+            </div>
+            <div style={styles.chatModalFooter}>
+              <input
+                type="text"
+                style={styles.chatInput}
+                placeholder="Type a message..."
+                readOnly
+                aria-label="Message input"
+              />
+              <button
+                type="button"
+                style={styles.chatSendButton}
+                aria-label="Send message"
+                disabled
+              >
+                <Ionicons name="send" size={20} color="#ffffff" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={styles.scrollContainer}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <div style={styles.backButtonContainer}>
@@ -821,6 +1110,37 @@ export default function StudyPage() {
                           {stepAttemptsByIndex[currentStepIndex] ?? 0}
                         </ThemedText>
                       )}
+
+                      {currentStepIndex >= stepData.steps.length &&
+                        mistakesCollected.length > 0 && (
+                          <div style={styles.mistakeSummaryBox}>
+                            <ThemedText
+                              type="subtitle"
+                              style={styles.mistakeSummaryTitle}
+                            >
+                              Summary of mistakes
+                            </ThemedText>
+                            {mistakeSummaryLoading ? (
+                              <ThemedText style={styles.mistakeSummaryText}>
+                                Loading…
+                              </ThemedText>
+                            ) : mistakeSummary ? (
+                              <p style={styles.mistakeSummaryText}>
+                                {mistakeSummary}
+                              </p>
+                            ) : null}
+                            {(getAreasToWorkOn(currentProblemTopicIds) ||
+                              currentProblemCategoryName) && (
+                              <div style={styles.mistakeSummaryWorkOn}>
+                                <strong>
+                                  Work on:{" "}
+                                  {getAreasToWorkOn(currentProblemTopicIds) ||
+                                    currentProblemCategoryName}
+                                </strong>
+                              </div>
+                            )}
+                          </div>
+                        )}
                     </>
                   ) : null}
                 </ThemedView>
@@ -847,7 +1167,7 @@ export default function StudyPage() {
                   {stepData &&
                   stepData.steps.length > 0 &&
                   currentStepIndex < stepData.steps.length
-                    ? "Tip: Type the equation after doing this step. Example: '2x = 10' or 'x + 5 = 15'"
+                    ? "Tip: Type the equation after this step (e.g. '2x = 10'), or enter the final answer to skip ahead."
                     : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
                 </ThemedText>
                 <textarea
@@ -907,12 +1227,41 @@ export default function StudyPage() {
 
                 <div style={styles.answerButtons}>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         stepData &&
                         stepData.steps.length > 0 &&
                         currentStepIndex < stepData.steps.length
                       ) {
+                        if (
+                          isFinalAnswerMatch(practiceAnswer) ||
+                          isFinalCheckpointMatch(practiceAnswer)
+                        ) {
+                          setStepFeedbackCorrect(true);
+                          setStepFeedbackText(
+                            `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
+                          );
+                          setCurrentStepIndex(stepData.steps.length);
+                          setPracticeAnswer("");
+                          setPracticeFeedback("submitted");
+                          return;
+                        }
+                        setCheckingBypass(true);
+                        setStepFeedbackText(null);
+                        setStepFeedbackCorrect(null);
+                        const bypassOk =
+                          await tryBypassByGradingFinalStep(practiceAnswer);
+                        setCheckingBypass(false);
+                        if (bypassOk) {
+                          setStepFeedbackCorrect(true);
+                          setStepFeedbackText(
+                            `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
+                          );
+                          setCurrentStepIndex(stepData.steps.length);
+                          setPracticeAnswer("");
+                          setPracticeFeedback("submitted");
+                          return;
+                        }
                         submitStepAttempt();
                         return;
                       }
@@ -924,6 +1273,7 @@ export default function StudyPage() {
                     style={styles.submitAnswerButton}
                     disabled={
                       !practiceAnswer.trim() ||
+                      checkingBypass ||
                       (stepData &&
                         stepData.steps.length > 0 &&
                         currentStepIndex >= stepData.steps.length &&
@@ -974,17 +1324,36 @@ export default function StudyPage() {
                     currentStepIndex < stepData.steps.length
                   ) &&
                   answerCorrect !== null && (
-                    <ThemedText
+                    <div
                       style={
                         answerCorrect
                           ? styles.feedbackCorrect
                           : styles.feedbackIncorrect
                       }
                     >
-                      {answerCorrect
-                        ? "✓ Correct! Great job!"
-                        : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
-                    </ThemedText>
+                      {answerCorrect ? (
+                        "✓ Correct! Great job!"
+                      ) : (
+                        <>
+                          <span>
+                            ✗ Incorrect.{" "}
+                            {correctAnswer
+                              ? `The correct answer is ${correctAnswer}.`
+                              : "Please try again."}
+                          </span>
+                          {(getAreasToWorkOn(currentProblemTopicIds) ||
+                            currentProblemCategoryName) && (
+                              <div style={styles.feedbackWorkOn}>
+                                <strong>
+                                  Work on:{" "}
+                                  {getAreasToWorkOn(currentProblemTopicIds) ||
+                                    currentProblemCategoryName}
+                                </strong>
+                              </div>
+                            )}
+                        </>
+                      )}
+                    </div>
                   )}
               </ThemedView>
             </>
@@ -1217,6 +1586,35 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#86868b",
     fontWeight: "400",
   },
+  mistakeSummaryBox: {
+    marginTop: 20,
+    padding: 18,
+    backgroundColor: "#faf5ff",
+    borderRadius: 12,
+    borderLeft: "4px solid #a78bfa",
+  },
+  mistakeSummaryTitle: {
+    display: "block",
+    marginBottom: 10,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1d1d1f",
+  },
+  mistakeSummaryText: {
+    fontSize: 15,
+    lineHeight: 1.6,
+    color: "#1d1d1f",
+    margin: 0,
+    whiteSpace: "pre-wrap" as const,
+    wordBreak: "break-word" as const,
+  },
+  mistakeSummaryWorkOn: {
+    marginTop: 14,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1d1d1f",
+    letterSpacing: "-0.01em",
+  },
   answerLabel: {
     fontSize: 15,
     fontWeight: "500",
@@ -1374,7 +1772,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: 16,
     backgroundColor: "#fff5f5",
     borderRadius: 12,
-    textAlign: "center" as "center",
+    textAlign: "left" as "left",
+    letterSpacing: "-0.01em",
+  },
+  feedbackWorkOn: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1d1d1f",
     letterSpacing: "-0.01em",
   },
   answerSection: {
@@ -1526,5 +1931,158 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 17,
     fontWeight: "500",
     letterSpacing: "-0.01em",
+  },
+  chatBubbleButton: {
+    position: "fixed" as const,
+    right: 24,
+    bottom: 96,
+    backgroundColor: "#a78bfa",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 4px 12px rgba(167, 139, 250, 0.4)",
+    transition: "all 0.2s ease",
+    zIndex: 20,
+  },
+  chatModalOverlay: {
+    position: "fixed" as const,
+    inset: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    padding: 24,
+    boxSizing: "border-box",
+  },
+  chatModalContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0,0,0,0.04)",
+    width: "100%",
+    maxWidth: 420,
+    height: "85vh",
+    maxHeight: 560,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  chatModalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "16px 16px 14px",
+    borderBottom: "1px solid #e5e5e7",
+    backgroundColor: "#fbfbfd",
+    flexShrink: 0,
+  },
+  chatModalHeaderLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  chatModalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f5f5f7",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatModalTitle: {
+    margin: 0,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1d1d1f",
+    letterSpacing: "-0.02em",
+    display: "block",
+  },
+  chatModalSubtitle: {
+    fontSize: 13,
+    color: "#86868b",
+    fontWeight: "400",
+    marginTop: 2,
+    display: "block",
+  },
+  chatModalCloseButton: {
+    backgroundColor: "transparent",
+    border: "none",
+    cursor: "pointer",
+    padding: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    transition: "background-color 0.2s ease",
+  },
+  chatModalMessages: {
+    flex: 1,
+    overflowY: "auto" as const,
+    padding: "16px 16px 12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    WebkitOverflowScrolling: "touch",
+    backgroundColor: "#fbfbfd",
+  },
+  chatBubbleBot: {
+    alignSelf: "flex-start",
+    maxWidth: "85%",
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    padding: "12px 16px",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
+    border: "1px solid #e5e5e7",
+  },
+  chatBubbleText: {
+    fontSize: 15,
+    lineHeight: 1.5,
+    color: "#1d1d1f",
+    margin: 0,
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    letterSpacing: "-0.01em",
+  },
+  chatModalFooter: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 16px 16px",
+    borderTop: "1px solid #e5e5e7",
+    backgroundColor: "#ffffff",
+    flexShrink: 0,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: "#f5f5f7",
+    border: "none",
+    borderRadius: 22,
+    padding: "12px 18px",
+    fontSize: 15,
+    color: "#1d1d1f",
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    outline: "none",
+  },
+  chatSendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#a78bfa",
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    boxShadow: "0 2px 6px rgba(167, 139, 250, 0.35)",
+    opacity: 0.7,
   },
 };
