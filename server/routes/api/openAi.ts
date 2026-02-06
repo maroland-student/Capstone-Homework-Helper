@@ -298,13 +298,14 @@ export async function handle(
       );
 
       OpenAIHandler.generateMathProblem(topicIds)
-        .then((problemText: string) => {
+        .then((result: { problem: string; categoryName?: string }) => {
           ToggleLogs.log(
-            `Generated problem: ${problemText.substring(0, 100)}...`,
+            `Generated problem: ${result.problem.substring(0, 100)}...`,
             LogLevel.DEBUG,
           );
           UrlUtils.sendJson(res, 200, {
-            problem: problemText,
+            problem: result.problem,
+            ...(result.categoryName && { categoryName: result.categoryName }),
           });
         })
         .catch((err: any) => {
