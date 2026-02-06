@@ -1,4 +1,4 @@
-import { EquationData, HintGenerator, StepContext } from "@/lib/hint-generator"; // COMMIT 3 — import StepContext
+import { EquationData, HintGenerator, StepContext } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import {
     validateEquationSyntax,
@@ -144,6 +144,16 @@ export default function MathLearningPlatform() {
         [key: number]: "submitted" | "canceled" | null;
     }>({});
 
+    const allStepsComplete =
+        stepData !== null &&
+        stepData.steps.length > 0 &&
+        currentStepIndex >= stepData.steps.length;
+
+    const inActiveStep =
+        stepData !== null &&
+        stepData.steps.length > 0 &&
+        currentStepIndex < stepData.steps.length;
+
     const validateInput = (text: string): boolean => {
         setInputError(null);
         if (!text || text.trim().length === 0) {
@@ -252,13 +262,11 @@ export default function MathLearningPlatform() {
     const handleGetHint = async () => {
         if (!problem) return;
 
+        if (allStepsComplete) return;
+
         if (!hintGeneratorRef.current) {
             let ctx: StepContext | null = null;
-            if (
-                stepData &&
-                stepData.steps.length > 0 &&
-                currentStepIndex < stepData.steps.length
-            ) {
+            if (inActiveStep && stepData) {
                 const step = stepData.steps[currentStepIndex];
                 ctx = {
                     stepIndex: currentStepIndex,
@@ -327,7 +335,6 @@ export default function MathLearningPlatform() {
             if (extractResponse.ok) {
                 const extractedData = await extractResponse.json();
                 if (extractedData.equation) {
-                    // Validate extracted equation is mathematically correct
                     const eq = extractedData.equation || "";
                     const subEq = extractedData.substitutedEquation || "";
 
@@ -339,7 +346,6 @@ export default function MathLearningPlatform() {
                             syntaxErrors: syntaxCheck.errors,
                             templateErrors: templateCheck.errors,
                         });
-                        // Still set it, but log the warnings
                     }
 
                     setEquationData({
@@ -412,7 +418,6 @@ export default function MathLearningPlatform() {
                 if (extractResponse.ok) {
                     const extractedData = await extractResponse.json();
                     if (extractedData.equation) {
-                        // Validate extracted equation is mathematically correct
                         const eq = extractedData.equation || "";
                         const subEq = extractedData.substitutedEquation || "";
 
@@ -630,7 +635,6 @@ export default function MathLearningPlatform() {
                             `${feedback} Finished. Final answer: ${stepData.finalAnswer}`,
                         );
                     }
-                    // All steps complete - disable further step submissions
                 } else {
                     setCurrentStepIndex(next);
                 }
@@ -870,7 +874,6 @@ export default function MathLearningPlatform() {
                         </>
                     )}
 
-                    {/* Step-by-step (checkpoints) uses the existing answer box below */}
                     {equationData?.substitutedEquation && (
                         <ThemedView style={styles.stepSection}>
                             <ThemedText type="subtitle" style={styles.stepTitle}>
@@ -926,34 +929,24 @@ export default function MathLearningPlatform() {
 
                     <ThemedView style={styles.answerSection}>
                         <ThemedText style={styles.answerLabel}>
-                            {stepData &&
-                                stepData.steps.length > 0 &&
-                                currentStepIndex < stepData.steps.length
-                                ? "Your Step Result:"
-                                : "Your Answer:"}
+                            {inActiveStep ? "Your Step Result:" : "Your Answer:"}
                         </ThemedText>
 
-                        {stepData &&
-                            stepData.steps.length > 0 &&
-                            currentStepIndex < stepData.steps.length && (
-                                <ThemedText style={styles.stepInstruction}>
-                                    {stepData.steps[currentStepIndex]?.instruction}
-                                </ThemedText>
-                            )}
+                        {inActiveStep && stepData && (
+                            <ThemedText style={styles.stepInstruction}>
+                                {stepData.steps[currentStepIndex]?.instruction}
+                            </ThemedText>
+                        )}
 
                         <ThemedText style={styles.inputHint}>
-                            {stepData &&
-                                stepData.steps.length > 0 &&
-                                currentStepIndex < stepData.steps.length
+                            {inActiveStep
                                 ? "Tip: Type the equation after doing this step. Example: '2x = 10' or 'x + 5 = 15'"
                                 : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
                         </ThemedText>
                         <textarea
                             style={styles.answerInput}
                             placeholder={
-                                stepData &&
-                                    stepData.steps.length > 0 &&
-                                    currentStepIndex < stepData.steps.length
+                                inActiveStep
                                     ? "Example: 2x = 10 or x + 5 = 15"
                                     : "Example: 42 or x = 42"
                             }
@@ -965,13 +958,7 @@ export default function MathLearningPlatform() {
                                 setStepFeedbackCorrect(null);
                             }}
                             rows={3}
-                            disabled={
-                                (stepData &&
-                                    stepData.steps.length > 0 &&
-                                    currentStepIndex >= stepData.steps.length &&
-                                    answerCorrect === true) ||
-                                false
-                            }
+                            disabled={allStepsComplete && answerCorrect === true}
                         />
 
                         {role === "teacher" && (
@@ -1022,7 +1009,11 @@ export default function MathLearningPlatform() {
                         {currentHint && (
                             <div style={styles.hintBox}>
                                 <div style={styles.hintHeader}>
-                                    <span style={styles.hintTitle}>Hint {hintLevel}/3</span>
+                                    <span style={styles.hintTitle}>
+                                        {inActiveStep
+                                            ? `Hint for Step ${currentStepIndex + 1} (${hintLevel}/3)`
+                                            : `Hint ${hintLevel}/3`}
+                                    </span>
                                     <button onClick={resetHints} style={styles.closeHintButton}>
                                         X
                                     </button>
@@ -1034,11 +1025,7 @@ export default function MathLearningPlatform() {
                         <div style={styles.answerButtons}>
                             <button
                                 onClick={() => {
-                                    if (
-                                        stepData &&
-                                        stepData.steps.length > 0 &&
-                                        currentStepIndex < stepData.steps.length
-                                    ) {
+                                    if (inActiveStep) {
                                         submitStepAttempt();
                                         return;
                                     }
@@ -1050,11 +1037,7 @@ export default function MathLearningPlatform() {
                                 style={styles.submitAnswerButton}
                                 disabled={
                                     !practiceAnswer.trim() ||
-                                    (stepData &&
-                                        stepData.steps.length > 0 &&
-                                        currentStepIndex >= stepData.steps.length &&
-                                        answerCorrect === true) ||
-                                    false
+                                    (allStepsComplete && answerCorrect === true)
                                 }
                             >
                                 <ThemedText style={styles.buttonText}>Submit</ThemedText>
@@ -1076,27 +1059,25 @@ export default function MathLearningPlatform() {
                                 onClick={handleGetHint}
                                 style={{
                                     ...styles.hintButton,
-                                    ...(loadingHint || hintLevel >= 3
+                                    ...(loadingHint || hintLevel >= 3 || allStepsComplete
                                         ? styles.buttonDisabled
                                         : {}),
                                 }}
-                                disabled={loadingHint || hintLevel >= 3}
+                                disabled={loadingHint || hintLevel >= 3 || allStepsComplete}
                             >
                                 <ThemedText style={styles.buttonText}>
                                     {loadingHint
                                         ? "Loading..."
-                                        : hintLevel >= 3
+                                        : hintLevel >= 3 || allStepsComplete
                                             ? "No More Hints"
-                                            : `Get Hint${hintLevel > 0 ? ` (${hintLevel}/3)` : ""}`}
+                                            : inActiveStep
+                                                ? `Get Hint for Step ${currentStepIndex + 1}${hintLevel > 0 ? ` (${hintLevel}/3)` : ""}`
+                                                : `Get Hint${hintLevel > 0 ? ` (${hintLevel}/3)` : ""}`}
                                 </ThemedText>
                             </button>
                         </div>
                         {practiceFeedback === "submitted" &&
-                            !(
-                                stepData &&
-                                stepData.steps.length > 0 &&
-                                currentStepIndex < stepData.steps.length
-                            ) &&
+                            !inActiveStep &&
                             answerCorrect !== null && (
                                 <ThemedText
                                     style={
@@ -1115,8 +1096,7 @@ export default function MathLearningPlatform() {
             ) : (
                 <ThemedView style={styles.centerContent}>
                     <ThemedText style={styles.emptyText}>
-                        Enter a custom problem above or click "Random Problem" to get
-                        started!
+                        Enter a custom problem above or click Random Problem to get started!
                     </ThemedText>
                 </ThemedView>
             )}
