@@ -13,15 +13,29 @@ export interface EquationData {
   variables: string[];
 }
 
+export interface StepContext {
+  stepIndex: number;       
+  totalSteps: number;     
+  instruction: string;   
+  checkpoint: string;   
+}
+
 export class HintGenerator {
   private problem: string;
   private equationData: EquationData | null;
   private currentLevel: HintLevel;
   private cachedHints: Map<HintLevel, string>;
 
-  constructor(problem: string, equationData: EquationData | null) {
+  private stepContext: StepContext | null;
+
+  constructor(
+    problem: string,
+    equationData: EquationData | null,
+    stepContext: StepContext | null = null,
+  ) {
     this.problem = problem;
     this.equationData = equationData;
+    this.stepContext = stepContext;
     this.currentLevel = 1;
     this.cachedHints = new Map();
   }
@@ -50,6 +64,7 @@ export class HintGenerator {
           substitutedEquation: this.equationData?.substitutedEquation || null,
           variables: this.equationData?.variables || [],
           hintLevel: this.currentLevel,
+          stepContext: this.stepContext,
         }),
       });
 
@@ -67,7 +82,6 @@ export class HintGenerator {
       this.cachedHints.set(this.currentLevel, hint);
       const level = this.currentLevel;
       this.currentLevel = Math.min(this.currentLevel + 1, 4) as HintLevel;
-
       return { hint, level };
     } catch (error) {
       console.error("Error generating hint:", error);
