@@ -12,7 +12,12 @@ export interface ValidationResult {
 }
 
 /**
- * Removes whitespaces and normalizes equation input
+ * Removes whitespaces and normalizes equation input including copy/paste
+ * characters from PDFs, etc.
+ *
+ *  - whitespace removal
+ *  - unicode minus to -
+ *  - unicode multiplication to *
  */
 function normalizeEquationInput(raw: string): string {
   return raw
