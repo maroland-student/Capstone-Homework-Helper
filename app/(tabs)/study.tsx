@@ -4,6 +4,7 @@ import {
   validateEquationSyntax,
   validateEquationTemplate,
 } from "@/utilities/equationValidator";
+import { getTopicById } from "@/utilities/topicsLoader";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
@@ -75,6 +76,11 @@ export default function StudyPage() {
   >(null);
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
+  const [currentProblemTopicIds, setCurrentProblemTopicIds] = useState<
+    string[]
+  >([]);
+  const [currentProblemCategoryName, setCurrentProblemCategoryName] =
+    useState<string | null>(null);
 
   // Checkpoint/Step-by-step state
   const [stepData, setStepData] = useState<{
@@ -114,6 +120,20 @@ export default function StudyPage() {
 
   // Chat help modal
   const [showChatModal, setShowChatModal] = useState(false);
+
+  const getAreasToWorkOn = (topicIds: string[]): string => {
+    if (topicIds.length === 0) return "";
+    const parts = new Set<string>();
+    for (const id of topicIds) {
+      const result = getTopicById(id);
+      if (result?.category?.name && result?.topic?.name) {
+        parts.add(`${result.category.name}: ${result.topic.name}`);
+      } else if (result?.category?.name) {
+        parts.add(result.category.name);
+      }
+    }
+    return Array.from(parts).join(", ");
+  };
 
   const validateInput = (text: string): boolean => {
     setInputError(null);
@@ -365,6 +385,8 @@ export default function StudyPage() {
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
+    setCurrentProblemTopicIds([]);
+    setCurrentProblemCategoryName(null);
 
     setExtracting(true);
     try {
@@ -431,6 +453,8 @@ export default function StudyPage() {
       setMistakesCollected([]);
       setMistakeSummary(null);
       setMistakeSummaryLoading(false);
+      setCurrentProblemTopicIds([]);
+      setCurrentProblemCategoryName(null);
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -453,6 +477,15 @@ export default function StudyPage() {
 
       const fullProblem = data.problem || "No problem generated";
       setProblem(fullProblem);
+      if (topicIds.length > 0) {
+        setCurrentProblemTopicIds(topicIds);
+        setCurrentProblemCategoryName(null);
+      } else {
+        setCurrentProblemTopicIds([]);
+        setCurrentProblemCategoryName(
+          typeof data.categoryName === "string" ? data.categoryName : null,
+        );
+      }
 
       setExtracting(true);
       try {
@@ -1096,6 +1129,16 @@ export default function StudyPage() {
                                 {mistakeSummary}
                               </p>
                             ) : null}
+                            {(getAreasToWorkOn(currentProblemTopicIds) ||
+                              currentProblemCategoryName) && (
+                              <div style={styles.mistakeSummaryWorkOn}>
+                                <strong>
+                                  Work on:{" "}
+                                  {getAreasToWorkOn(currentProblemTopicIds) ||
+                                    currentProblemCategoryName}
+                                </strong>
+                              </div>
+                            )}
                           </div>
                         )}
                     </>
@@ -1281,17 +1324,36 @@ export default function StudyPage() {
                     currentStepIndex < stepData.steps.length
                   ) &&
                   answerCorrect !== null && (
-                    <ThemedText
+                    <div
                       style={
                         answerCorrect
                           ? styles.feedbackCorrect
                           : styles.feedbackIncorrect
                       }
                     >
-                      {answerCorrect
-                        ? "✓ Correct! Great job!"
-                        : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
-                    </ThemedText>
+                      {answerCorrect ? (
+                        "✓ Correct! Great job!"
+                      ) : (
+                        <>
+                          <span>
+                            ✗ Incorrect.{" "}
+                            {correctAnswer
+                              ? `The correct answer is ${correctAnswer}.`
+                              : "Please try again."}
+                          </span>
+                          {(getAreasToWorkOn(currentProblemTopicIds) ||
+                            currentProblemCategoryName) && (
+                              <div style={styles.feedbackWorkOn}>
+                                <strong>
+                                  Work on:{" "}
+                                  {getAreasToWorkOn(currentProblemTopicIds) ||
+                                    currentProblemCategoryName}
+                                </strong>
+                              </div>
+                            )}
+                        </>
+                      )}
+                    </div>
                   )}
               </ThemedView>
             </>
@@ -1546,6 +1608,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     whiteSpace: "pre-wrap" as const,
     wordBreak: "break-word" as const,
   },
+  mistakeSummaryWorkOn: {
+    marginTop: 14,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1d1d1f",
+    letterSpacing: "-0.01em",
+  },
   answerLabel: {
     fontSize: 15,
     fontWeight: "500",
@@ -1703,7 +1772,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: 16,
     backgroundColor: "#fff5f5",
     borderRadius: 12,
-    textAlign: "center" as "center",
+    textAlign: "left" as "left",
+    letterSpacing: "-0.01em",
+  },
+  feedbackWorkOn: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1d1d1f",
     letterSpacing: "-0.01em",
   },
   answerSection: {

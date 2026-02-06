@@ -14,6 +14,10 @@ export const getCategories = (): TopicCategory[] => {
   return topics.categories;
 };
 
+export const getCategoryNames = (): string[] => {
+  return topics.categories.map((c) => c.name);
+};
+
 export const getAllTopicIds = (): string[] => {
   return topics.categories.flatMap(category => 
     category.topics.map(topic => topic.id)

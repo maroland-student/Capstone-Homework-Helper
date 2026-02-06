@@ -3,7 +3,7 @@
 import { OpenAI } from "openai";
 import openAIQueryParams from "../server/models/openai-query";
 import ToggleLogs, { LogLevel } from "../server/utilities/toggle_logs";
-import { getTopicById } from "./topicsLoader";
+import { getCategoryNames, getTopicById } from "./topicsLoader";
 
 const ai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
@@ -149,11 +149,63 @@ export class OpenAIHandler {
     }
   }
 
-  public static async generateAlgebra1Problem(): Promise<string> {
+  public static async generateAlgebra1Problem(): Promise<{
+    problem: string;
+    categoryName?: string;
+  }> {
     return this.generateMathProblem([]);
   }
 
-  public static async generateMathProblem(topicIds: string[]): Promise<string> {
+  public static async classifyMathProblem(
+    problemText: string,
+  ): Promise<string | null> {
+    try {
+      const categoryNames = getCategoryNames();
+      const list = categoryNames.join("\n- ");
+
+      const prompt = `You are classifying an Algebra 1 math word problem into exactly one of these categories. Reply with ONLY the category name, nothing else.
+
+Categories:
+- ${list}
+
+Problem to classify:
+"${problemText}"
+
+Reply with exactly one of the category names from the list above.`;
+
+      const response = await ai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You reply with only a single category name from the given list. No explanation or extra text.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+      });
+
+      const text = (response.choices[0]?.message?.content ?? "").trim();
+      if (!text) return null;
+      const match = categoryNames.find(
+        (name) => name.toLowerCase() === text.toLowerCase(),
+      );
+      if (match) return match;
+      return text;
+    } catch (err) {
+      ToggleLogs.log(
+        "Error classifying math problem: " + err,
+        LogLevel.CRITICAL,
+      );
+      return null;
+    }
+  }
+
+  public static async generateMathProblem(topicIds: string[]): Promise<{
+    problem: string;
+    categoryName?: string;
+  }> {
     try {
       let topicDescriptions: string[] = [];
 
@@ -224,13 +276,20 @@ Do NOT include equations like "y = mx + b" or "y = 25 + 0.15x" in the problem te
       });
 
       const text = response.choices[0]?.message?.content ?? "";
-      return text.trim();
+      const problem = text.trim();
+
+      if (topicIds.length === 0 && problem) {
+        const categoryName = await this.classifyMathProblem(problem);
+        return { problem, categoryName: categoryName ?? undefined };
+      }
+
+      return { problem };
     } catch (err) {
       ToggleLogs.log(
         "Error generating math problem: " + err,
         LogLevel.CRITICAL,
       );
-      return "Error generating math problem.";
+      return { problem: "Error generating math problem." };
     }
   }
 
