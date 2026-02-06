@@ -15,10 +15,12 @@ export default function Pin({
 
     pinned,
     clear,
+    dismiss,
 
 }: {
     pinned: PinData | null;
     clear: () => void;
+    dismiss: () => void;
 
 
 
@@ -42,22 +44,32 @@ export default function Pin({
             <View style={styles.title}>
                 <View style={styles.titleLeft}>
                     <Text style={styles.label}>
-                        Pinned Step: {pinned?.typeOfInfo ? ` ${pinned.typeOfInfo.toUpperCase()}` : ""}
+                        Pinned Info: {pinned?.typeOfInfo ? ` ${pinned.typeOfInfo.toUpperCase()}` : ""}
                     </Text>
 
                     <Text style={styles.label}>
                         {pinned?.title ? pinned.title : "Press the 'Pin' Button to Pin something :)"}
                     </Text>
-
                 </View>
+
+                <View style ={styles.titleRight}>
+                    <Pressable 
+                        onPress={dismiss} 
+                        style={styles.dismissButton}>
+                            <Text style={styles.dismissButtonText}>
+                                Dismiss
+                            </Text>
+                        </Pressable>
+                
 
                 <Pressable
                         onPress={clear}
                         disabled={empty}
                         style={[styles.clearButton, empty ? styles.clearButtonDisabled : null]}
                 >
-                    <Text style={styles.clearButtonText}> X </Text>
+                    <Text style={styles.clearButtonText}> Clear </Text>
                 </Pressable>
+                </View>
 
 
             </View>
@@ -81,6 +93,7 @@ const styles = StyleSheet.create({
 
     container: {
         width: "100%",
+        minWidth: 240,
         borderRadius: 24,
         borderWidth: 1,
         borderColor: "rgba(167, 139, 250, 0.35)",
@@ -109,6 +122,7 @@ const styles = StyleSheet.create({
     },
     titleLeft: {
         paddingRight: 10,
+        flexShrink: 1,
     },
 
 
@@ -129,12 +143,19 @@ const styles = StyleSheet.create({
     },
 
     clearButton: {
-        borderRadius: 24,
+        marginLeft: 8,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: "rgba(167, 139, 250, 0.3)",
         backgroundColor: "rgba(167, 139, 250, 0.15)",
+
+        width: 50,
+        height: 30,
         
         padding: 10,
+
+        alignItems: "center",
+        justifyContent: "center",
         
 
 
@@ -146,16 +167,40 @@ const styles = StyleSheet.create({
 
     clearButtonText: {
         color: "#7C3AED",
-        fontSize: 12,
+        fontSize: 5,
         fontWeight: "800",
-        
-
-        lineHeight: 10,
 
     },
     bodyScroll: {
         overflow: "scroll",
         maxHeight: 220,
+    },
+    titleRight: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexShrink: 0,
+    },
+    dismissButton:{
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "rgba(167, 139, 250, 0.2)",
+        backgroundColor: "rgba(167, 139, 250, 0.1)",
+
+        width: 50,
+        height: 30,
+
+        padding: 10,
+
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    dismissButtonText:{
+        color: "rgba(107, 70, 193, 0.9)",
+        fontSize: 5,
+        fontWeight: "700",
+
+    
+
     },
 
 

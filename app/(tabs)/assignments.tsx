@@ -113,7 +113,7 @@ export default function MathLearningPlatform() {
   const [completedSteps, setCompletedSteps] = useState<CompletedStep[]>([]);
   const [expandedStep, setExpandedStep] = useState<Record<number, boolean>>({});
   const [pinned, setPinned] = useState<PinData | null>(null);
-
+  const [pinVisibility, setPinVisibility] = useState(false);
 
 
 
@@ -291,7 +291,9 @@ export default function MathLearningPlatform() {
     setAnswerCorrect(null);
     setCorrectAnswer(null);
     setPinned(null);
+    setPinVisibility(true);
     resetHints();
+   
 
     const trimmedProblem = userInput.trim();
     setProblem(trimmedProblem);
@@ -359,6 +361,7 @@ export default function MathLearningPlatform() {
       setCorrectAnswer(null);
       resetHints();
       setPinned(null);
+      setPinVisibility(true);
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -1056,6 +1059,7 @@ export default function MathLearningPlatform() {
 
                     const instruction = stepData.steps[currentStepIndex]?.instruction || "";
 
+                setPinVisibility(true);
                 setPinned({
                   title: `Step ${currentStepIndex + 1}`,
                   body: instruction,
@@ -1142,6 +1146,7 @@ export default function MathLearningPlatform() {
                     <button type="button"
                       onClick={() => {
 
+                        setPinVisibility(true);
                         setPinned({
                           title: `Hint ${hintLevel}/3`,
                           body: currentHint,
@@ -1263,7 +1268,20 @@ export default function MathLearningPlatform() {
 
     <div style={styles.practiceRightGap}>
       
-      <Pin pinned={pinned} clear={() => setPinned(null)} />
+      {pinVisibility && (
+      <Pin 
+        pinned={pinned} 
+        clear={() => setPinned(null)} 
+        dismiss={() => {
+          setPinned(null);
+          setPinVisibility(false);
+        }}
+        
+        />
+
+      )}
+
+
       </div>
     
   </div>
@@ -2360,7 +2378,6 @@ const styles: { [key: string]: React.CSSProperties } = {
 
 
 
- 
 
 
 
