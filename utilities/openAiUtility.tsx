@@ -3,6 +3,7 @@
 import { OpenAI } from "openai";
 import openAIQueryParams from "../server/models/openai-query";
 import ToggleLogs, { LogLevel } from "../server/utilities/toggle_logs";
+import { closeParens } from "./input-validation";
 import { getCategoryNames, getTopicById } from "./topicsLoader";
 
 const ai = new OpenAI({
@@ -773,20 +774,26 @@ Return ONLY valid JSON with EXACT keys:
     studentInput: string;
   }): Promise<{ correct: boolean; feedback: string }> {
     try {
+      const normalizeForGrading = (s: string): string =>
+        (s || "").trim().replace(/\s+/g, " ");
+      const expectedCheckpoint = normalizeForGrading(params.expectedCheckpoint);
+      const studentInput = normalizeForGrading(params.studentInput);
+
       const prompt = `You are grading ONE checkpoint step of a multi-step math solution.
 
 Start equation: "${params.startEquation}"
 Target variable: "${params.targetVariable}"
 Step instruction: "${params.stepInstruction}"
-Expected checkpoint (result after the step): "${params.expectedCheckpoint}"
-Student input: "${params.studentInput}"
+Expected checkpoint (result after the step): "${expectedCheckpoint}"
+Student input: "${studentInput}"
 
 Decide if the student's input is mathematically equivalent to the expected checkpoint and matches the step intent.
 - This must work for any topic: linear equations, systems (comma-separated equations), inequalities, quadratics, rational/radical equations.
-- Accept equivalent rearrangements and harmless formatting differences (e.g., "x = 5" vs "5 = x", reordering equations in a system).
+- ACCEPT equivalent rearrangements and harmless formatting: "x = 5" vs "5 = x", "2x=10" vs "2x = 10", reordering equations in a system. If the math is the same, mark correct.
 - For comma-separated equations (systems): the ORDER of equations does NOT matter. Treat as a set: "w + 20 = 0, w - 15 = 0" is the same as "w - 15 = 0, w + 20 = 0". Accept spacing/formatting variations (e.g. "w+20=0, w-15=0").
 - For inequalities: direction matters.
 - Prefer the specific checkpoint for this step; if the student skips ahead, mark incorrect unless their statement is exactly equivalent to the expected checkpoint.
+- When in doubt whether two expressions are equivalent, prefer marking CORRECT (give the student the benefit of the doubt).
 
 Return ONLY valid JSON:
 { "correct": true, "feedback": "..." }
@@ -1023,19 +1030,19 @@ Return ONLY valid JSON:
         break;
       }
 
-      // Check for balanced parentheses
-      const openParens = (step.checkpoint.match(/\(/g) || []).length;
-      const closeParens = (step.checkpoint.match(/\)/g) || []).length;
-      if (openParens !== closeParens) {
+      let checkpoint = step.checkpoint;
+      const openParens = (checkpoint.match(/\(/g) || []).length;
+      const closeParensCount = (checkpoint.match(/\)/g) || []).length;
+      if (openParens !== closeParensCount) {
         ToggleLogs.log(
-          `Step checkpoint has unbalanced parentheses: ${step.checkpoint}`,
+          `Step checkpoint had unbalanced parentheses, applying closeParens: ${checkpoint}`,
           LogLevel.WARN,
         );
-        break;
+        checkpoint = closeParens(checkpoint);
       }
 
-      validatedSteps.push(step);
-      previousEquation = step.checkpoint;
+      validatedSteps.push({ instruction: step.instruction, checkpoint });
+      previousEquation = checkpoint;
     }
 
     return validatedSteps;

@@ -4,12 +4,18 @@ import {
   validateEquationSyntax,
   validateEquationTemplate,
 } from "@/utilities/equationValidator";
+import { closeParens } from "@/utilities/input-validation";
 import { getTopicById } from "@/utilities/topicsLoader";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+
+function normalizeStepInput(s: string): string {
+  const trimmed = (s || "").trim().replace(/\s+/g, " ");
+  return closeParens(trimmed);
+}
 
 const ThemedText = ({ children, type, style }: any) => (
   <span
@@ -159,18 +165,22 @@ export default function StudyPage() {
   ): number | null => {
     try {
       const parts = substitutedEquation.split("=").map((p) => p.trim());
-      const lastPart = parts[parts.length - 1];
-
-      let expression = lastPart
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
-        .replace(/\s+/g, "");
-
-      if (/^[0-9+\-*/().\s]+$/.test(expression)) {
+      const tryPart = (part: string): number | null => {
+        const expression = part
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+          .replace(/\s+/g, "");
+        if (!/^[0-9+\-*/().\s]+$/.test(expression)) return null;
         const result = Function(`"use strict"; return (${expression})`)();
         if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
           return result;
         }
-      }
+        return null;
+      };
+      const lastPart = parts[parts.length - 1];
+      let value = tryPart(lastPart);
+      if (value !== null) return value;
+      if (parts.length >= 2) value = tryPart(parts[0]);
+      return value;
     } catch (e) {
       console.error("Error extracting answer from equation:", e);
     }
@@ -179,7 +189,7 @@ export default function StudyPage() {
 
   const normalizeAnswer = (answer: string): number | null => {
     try {
-      let cleaned = answer.trim();
+      let cleaned = (answer || "").trim();
       cleaned = cleaned.replace(
         /\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi,
         "",
@@ -189,6 +199,13 @@ export default function StudyPage() {
       const numberMatch = cleaned.match(/^-?\d+\.?\d*$/);
       if (numberMatch) {
         return parseFloat(numberMatch[0]);
+      }
+      const sciNotationMatch = cleaned.match(
+        /^-?\d+\.?\d*[eE][+-]?\d+$/,
+      );
+      if (sciNotationMatch) {
+        const n = parseFloat(sciNotationMatch[0]);
+        if (!isNaN(n) && isFinite(n)) return n;
       }
 
       if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
@@ -236,12 +253,22 @@ export default function StudyPage() {
     return null;
   };
 
+  const valuesMatch = (expected: number, actual: number): boolean => {
+    const tolerance = 0.02;
+    const relTolerance = 1e-6;
+    const diff = Math.abs(expected - actual);
+    return (
+      diff < tolerance ||
+      diff < Math.max(Math.abs(expected), Math.abs(actual)) * relTolerance
+    );
+  };
+
   const isFinalAnswerMatch = (userInput: string): boolean => {
     if (!stepData?.finalAnswer?.trim() || !userInput.trim()) return false;
     const expected = parseFinalAnswerValue(stepData.finalAnswer);
     const actual = parseUserAnswerValue(userInput);
     if (expected === null || actual === null) return false;
-    return Math.abs(expected - actual) < 0.01;
+    return valuesMatch(expected, actual);
   };
 
   const isFinalCheckpointMatch = (userInput: string): boolean => {
@@ -250,7 +277,7 @@ export default function StudyPage() {
     const expected = parseCheckpointValue(lastStep.checkpoint);
     const actual = parseUserAnswerValue(userInput);
     if (expected === null || actual === null) return false;
-    return Math.abs(expected - actual) < 0.01;
+    return valuesMatch(expected, actual);
   };
 
   const normalizeCommaSeparatedEquations = (s: string): string[] => {
@@ -279,6 +306,7 @@ export default function StudyPage() {
     if (!stepData?.steps?.length || !studentInput.trim()) return false;
     const lastStep = stepData.steps[stepData.steps.length - 1];
     try {
+      const normalizedInput = normalizeStepInput(studentInput);
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,7 +315,7 @@ export default function StudyPage() {
           targetVariable: stepData.targetVariable,
           stepInstruction: lastStep.instruction,
           expectedCheckpoint: lastStep.checkpoint,
-          studentInput,
+          studentInput: normalizedInput,
         }),
       });
       if (!resp.ok) return false;
@@ -303,12 +331,14 @@ export default function StudyPage() {
 
     let correctValue: number | null = null;
 
-    if (equationData?.substitutedEquation) {
+    if (stepData?.finalAnswer?.trim()) {
+      correctValue = parseFinalAnswerValue(stepData.finalAnswer);
+    }
+    if (correctValue === null && equationData?.substitutedEquation) {
       correctValue = extractAnswerFromEquation(
         equationData.substitutedEquation,
       );
     }
-
     if (correctValue === null && problem) {
       const answerMatch = problem.match(
         /(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i,
@@ -328,8 +358,12 @@ export default function StudyPage() {
       return false;
     }
 
-    const tolerance = 0.01;
-    const isCorrect = Math.abs(studentValue - correctValue) < tolerance;
+    const tolerance = 0.02;
+    const relTolerance = 1e-6;
+    const diff = Math.abs(studentValue - correctValue);
+    const isCorrect =
+      diff < tolerance ||
+      diff < Math.max(Math.abs(studentValue), Math.abs(correctValue)) * relTolerance;
 
     setCorrectAnswer(correctValue.toString());
     return isCorrect;
@@ -700,6 +734,7 @@ export default function StudyPage() {
     }
 
     try {
+      const studentInput = normalizeStepInput(practiceAnswer);
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -708,7 +743,7 @@ export default function StudyPage() {
           targetVariable: stepData.targetVariable,
           stepInstruction: step.instruction,
           expectedCheckpoint: step.checkpoint,
-          studentInput: practiceAnswer,
+          studentInput,
         }),
       });
 
@@ -1077,39 +1112,62 @@ export default function StudyPage() {
                     </ThemedText>
                   ) : stepData && stepData.steps.length > 0 ? (
                     <>
-                      <ThemedText style={styles.stepMeta}>
-                        Step{" "}
-                        {Math.min(currentStepIndex + 1, stepData.steps.length)}{" "}
-                        of {stepData.steps.length}
-                      </ThemedText>
+                      {(() => {
+                        const totalSteps = stepData.steps.length;
+                        const isComplete =
+                          currentStepIndex >= totalSteps;
+                        const displayStepNum = isComplete
+                          ? totalSteps
+                          : Math.max(
+                              1,
+                              Math.min(currentStepIndex + 1, totalSteps),
+                            );
+                        const effectiveIndex = Math.min(
+                          Math.max(0, currentStepIndex),
+                          totalSteps - 1,
+                        );
+                        return (
+                          <>
+                            <ThemedText style={styles.stepMeta}>
+                              {isComplete ? (
+                                <>Completed: {totalSteps} of {totalSteps} steps</>
+                              ) : (
+                                <>
+                                  Step {displayStepNum} of {totalSteps}
+                                </>
+                              )}
+                            </ThemedText>
 
-                      {currentStepIndex >= stepData.steps.length && (
-                        <ThemedText style={styles.feedbackCorrect}>
-                          ✓ Completed all steps.
-                          {stepData.finalAnswer
-                            ? ` Final answer: ${stepData.finalAnswer}`
-                            : ""}
-                        </ThemedText>
-                      )}
+                            {isComplete && (
+                              <ThemedText style={styles.feedbackCorrect}>
+                                ✓ Completed all steps.
+                                {stepData.finalAnswer
+                                  ? ` Final answer: ${stepData.finalAnswer}`
+                                  : ""}
+                              </ThemedText>
+                            )}
 
-                      {stepFeedbackText && (
-                        <ThemedText
-                          style={
-                            stepFeedbackCorrect === true
-                              ? styles.feedbackCorrect
-                              : styles.feedbackIncorrect
-                          }
-                        >
-                          {stepFeedbackText}
-                        </ThemedText>
-                      )}
+                            {stepFeedbackText && (
+                              <ThemedText
+                                style={
+                                  stepFeedbackCorrect === true
+                                    ? styles.feedbackCorrect
+                                    : styles.feedbackIncorrect
+                                }
+                              >
+                                {stepFeedbackText}
+                              </ThemedText>
+                            )}
 
-                      {currentStepIndex < stepData.steps.length && (
-                        <ThemedText style={styles.stepAttempts}>
-                          Attempts on this step:{" "}
-                          {stepAttemptsByIndex[currentStepIndex] ?? 0}
-                        </ThemedText>
-                      )}
+                            {!isComplete && (
+                              <ThemedText style={styles.stepAttempts}>
+                                Attempts on step {displayStepNum}:{" "}
+                                {stepAttemptsByIndex[effectiveIndex] ?? 0}
+                              </ThemedText>
+                            )}
+                          </>
+                        );
+                      })()}
 
                       {currentStepIndex >= stepData.steps.length &&
                         mistakesCollected.length > 0 && (
@@ -1159,7 +1217,8 @@ export default function StudyPage() {
                   stepData.steps.length > 0 &&
                   currentStepIndex < stepData.steps.length && (
                     <ThemedText style={styles.stepInstruction}>
-                      {stepData.steps[currentStepIndex]?.instruction}
+                      Step {Math.min(currentStepIndex + 1, stepData.steps.length)}:{" "}
+                      {stepData.steps[Math.min(currentStepIndex, stepData.steps.length - 1)]?.instruction}
                     </ThemedText>
                   )}
 
@@ -1167,7 +1226,7 @@ export default function StudyPage() {
                   {stepData &&
                   stepData.steps.length > 0 &&
                   currentStepIndex < stepData.steps.length
-                    ? "Tip: Type the equation after this step (e.g. '2x = 10'), or enter the final answer to skip ahead."
+                    ? "Tip: Enter the equation after this step, or type the final answer (e.g. x = 500) to skip ahead and complete the problem."
                     : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
                 </ThemedText>
                 <textarea
@@ -1176,7 +1235,7 @@ export default function StudyPage() {
                     stepData &&
                     stepData.steps.length > 0 &&
                     currentStepIndex < stepData.steps.length
-                      ? "Example: 2x = 10 or x + 5 = 15"
+                      ? "This step: 2x = 10 — or final answer to skip: x = 500"
                       : "Example: 42 or x = 42"
                   }
                   value={practiceAnswer}

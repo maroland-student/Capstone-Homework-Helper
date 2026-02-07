@@ -1,8 +1,14 @@
 import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import { validateEquationSyntax, validateEquationTemplate } from "@/utilities/equationValidator";
+import { closeParens } from "@/utilities/input-validation";
 import { useEffect, useRef, useState } from "react";
 import Pin, {PinData} from "@/components/Pin";
+
+function normalizeStepInput(s: string): string {
+  const trimmed = (s || "").trim().replace(/\s+/g, " ");
+  return closeParens(trimmed);
+}
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -166,18 +172,22 @@ export default function MathLearningPlatform() {
   ): number | null => {
     try {
       const parts = substitutedEquation.split("=").map((p) => p.trim());
-      const lastPart = parts[parts.length - 1];
-
-      let expression = lastPart
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
-        .replace(/\s+/g, "");
-
-      if (/^[0-9+\-*/().\s]+$/.test(expression)) {
+      const tryPart = (part: string): number | null => {
+        const expression = part
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+          .replace(/\s+/g, "");
+        if (!/^[0-9+\-*/().\s]+$/.test(expression)) return null;
         const result = Function(`"use strict"; return (${expression})`)();
         if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
           return result;
         }
-      }
+        return null;
+      };
+      const lastPart = parts[parts.length - 1];
+      let value = tryPart(lastPart);
+      if (value !== null) return value;
+      if (parts.length >= 2) value = tryPart(parts[0]);
+      return value;
     } catch (e) {
       console.error("Error extracting answer from equation:", e);
     }
@@ -186,7 +196,7 @@ export default function MathLearningPlatform() {
 
   const normalizeAnswer = (answer: string): number | null => {
     try {
-      let cleaned = answer.trim();
+      let cleaned = (answer || "").trim();
       cleaned = cleaned.replace(
         /\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi,
         "",
@@ -196,6 +206,13 @@ export default function MathLearningPlatform() {
       const numberMatch = cleaned.match(/^-?\d+\.?\d*$/);
       if (numberMatch) {
         return parseFloat(numberMatch[0]);
+      }
+      const sciNotationMatch = cleaned.match(
+        /^-?\d+\.?\d*[eE][+-]?\d+$/,
+      );
+      if (sciNotationMatch) {
+        const n = parseFloat(sciNotationMatch[0]);
+        if (!isNaN(n) && isFinite(n)) return n;
       }
 
       if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
@@ -210,17 +227,30 @@ export default function MathLearningPlatform() {
     return null;
   };
 
+  const parseFinalAnswerValue = (finalAnswer: string): number | null => {
+    if (!finalAnswer?.trim()) return null;
+    const trimmed = finalAnswer.trim();
+    const parts = trimmed.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return normalizeAnswer(trimmed);
+  };
+
   const checkAnswer = (studentAnswer: string): boolean => {
     if (!studentAnswer.trim()) return false;
 
     let correctValue: number | null = null;
 
-    if (equationData?.substitutedEquation) {
+    if (stepData?.finalAnswer?.trim()) {
+      correctValue = parseFinalAnswerValue(stepData.finalAnswer);
+    }
+    if (correctValue === null && equationData?.substitutedEquation) {
       correctValue = extractAnswerFromEquation(
         equationData.substitutedEquation,
       );
     }
-
     if (correctValue === null && problem) {
       const answerMatch = problem.match(
         /(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i,
@@ -240,8 +270,12 @@ export default function MathLearningPlatform() {
       return false;
     }
 
-    const tolerance = 0.01;
-    const isCorrect = Math.abs(studentValue - correctValue) < tolerance;
+    const tolerance = 0.02;
+    const relTolerance = 1e-6;
+    const diff = Math.abs(studentValue - correctValue);
+    const isCorrect =
+      diff < tolerance ||
+      diff < Math.max(Math.abs(studentValue), Math.abs(correctValue)) * relTolerance;
 
     setCorrectAnswer(correctValue.toString());
     return isCorrect;
@@ -563,6 +597,7 @@ export default function MathLearningPlatform() {
     setPracticeFeedback(null);
 
     try {
+      const studentInput = normalizeStepInput(practiceAnswer);
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -571,7 +606,7 @@ export default function MathLearningPlatform() {
           targetVariable: stepData.targetVariable,
           stepInstruction: step.instruction,
           expectedCheckpoint: step.checkpoint,
-          studentInput: practiceAnswer,
+          studentInput,
         }),
       });
 
@@ -911,7 +946,21 @@ export default function MathLearningPlatform() {
               ) : stepData && stepData.steps.length > 0 ? (
                 <>
                   <ThemedText style={styles.stepMeta}>
-                    Step {Math.min(currentStepIndex + 1, stepData.steps.length)} of {stepData.steps.length}
+                    {currentStepIndex >= stepData.steps.length ? (
+                      <>Completed: {stepData.steps.length} of {stepData.steps.length} steps</>
+                    ) : (
+                      <>
+                        Step{" "}
+                        {Math.max(
+                          1,
+                          Math.min(
+                            currentStepIndex + 1,
+                            stepData.steps.length,
+                          ),
+                        )}{" "}
+                        of {stepData.steps.length}
+                      </>
+                    )}
                   </ThemedText>
 
                   {currentStepIndex >= stepData.steps.length && (
