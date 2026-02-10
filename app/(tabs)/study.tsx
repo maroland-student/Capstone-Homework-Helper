@@ -1,15 +1,22 @@
+import Pin, { PinData } from "@/components/Pin";
 import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import {
   validateEquationSyntax,
   validateEquationTemplate,
 } from "@/utilities/equationValidator";
+import { closeParens } from "@/utilities/input-validation";
 import { getTopicById } from "@/utilities/topicsLoader";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+
+function normalizeStepInput(s: string): string {
+  const trimmed = (s || "").trim().replace(/\s+/g, " ");
+  return closeParens(trimmed);
+}
 
 const ThemedText = ({ children, type, style }: any) => (
   <span
@@ -60,6 +67,14 @@ type StepCheckpoint = {
   checkpoint: string;
 };
 
+type CompletedStep = {
+  stepIndex: number;
+  instruction: string;
+  correct: string;
+  response?: string;
+  timestamp: string;
+};
+
 export default function StudyPage() {
   const { selectedTopics } = useSubjects();
   const [showStudyInterface, setShowStudyInterface] = useState(false);
@@ -79,8 +94,9 @@ export default function StudyPage() {
   const [currentProblemTopicIds, setCurrentProblemTopicIds] = useState<
     string[]
   >([]);
-  const [currentProblemCategoryName, setCurrentProblemCategoryName] =
-    useState<string | null>(null);
+  const [currentProblemCategoryName, setCurrentProblemCategoryName] = useState<
+    string | null
+  >(null);
 
   // Checkpoint/Step-by-step state
   const [stepData, setStepData] = useState<{
@@ -100,6 +116,8 @@ export default function StudyPage() {
   const [stepAttemptsByIndex, setStepAttemptsByIndex] = useState<
     Record<number, number>
   >({});
+  const [completedSteps, setCompletedSteps] = useState<CompletedStep[]>([]);
+  const [expandedStep, setExpandedStep] = useState<Record<number, boolean>>({});
   const [checkingBypass, setCheckingBypass] = useState(false);
   const [mistakesCollected, setMistakesCollected] = useState<
     Array<{
@@ -117,6 +135,9 @@ export default function StudyPage() {
   const [hintLevel, setHintLevel] = useState<number>(0);
   const [loadingHint, setLoadingHint] = useState(false);
   const hintGeneratorRef = useRef<HintGenerator | null>(null);
+  const [showCheatSheet, setShowCheatSheet] = useState(false);
+  const [pinned, setPinned] = useState<PinData | null>(null);
+  const [pinVisibility, setPinVisibility] = useState(false);
 
   // Chat help modal
   const [showChatModal, setShowChatModal] = useState(false);
@@ -159,18 +180,22 @@ export default function StudyPage() {
   ): number | null => {
     try {
       const parts = substitutedEquation.split("=").map((p) => p.trim());
-      const lastPart = parts[parts.length - 1];
-
-      let expression = lastPart
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
-        .replace(/\s+/g, "");
-
-      if (/^[0-9+\-*/().\s]+$/.test(expression)) {
+      const tryPart = (part: string): number | null => {
+        const expression = part
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+          .replace(/\s+/g, "");
+        if (!/^[0-9+\-*/().\s]+$/.test(expression)) return null;
         const result = Function(`"use strict"; return (${expression})`)();
         if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
           return result;
         }
-      }
+        return null;
+      };
+      const lastPart = parts[parts.length - 1];
+      let value = tryPart(lastPart);
+      if (value !== null) return value;
+      if (parts.length >= 2) value = tryPart(parts[0]);
+      return value;
     } catch (e) {
       console.error("Error extracting answer from equation:", e);
     }
@@ -179,7 +204,7 @@ export default function StudyPage() {
 
   const normalizeAnswer = (answer: string): number | null => {
     try {
-      let cleaned = answer.trim();
+      let cleaned = (answer || "").trim();
       cleaned = cleaned.replace(
         /\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi,
         "",
@@ -189,6 +214,11 @@ export default function StudyPage() {
       const numberMatch = cleaned.match(/^-?\d+\.?\d*$/);
       if (numberMatch) {
         return parseFloat(numberMatch[0]);
+      }
+      const sciNotationMatch = cleaned.match(/^-?\d+\.?\d*[eE][+-]?\d+$/);
+      if (sciNotationMatch) {
+        const n = parseFloat(sciNotationMatch[0]);
+        if (!isNaN(n) && isFinite(n)) return n;
       }
 
       if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
@@ -236,12 +266,22 @@ export default function StudyPage() {
     return null;
   };
 
+  const valuesMatch = (expected: number, actual: number): boolean => {
+    const tolerance = 0.02;
+    const relTolerance = 1e-6;
+    const diff = Math.abs(expected - actual);
+    return (
+      diff < tolerance ||
+      diff < Math.max(Math.abs(expected), Math.abs(actual)) * relTolerance
+    );
+  };
+
   const isFinalAnswerMatch = (userInput: string): boolean => {
     if (!stepData?.finalAnswer?.trim() || !userInput.trim()) return false;
     const expected = parseFinalAnswerValue(stepData.finalAnswer);
     const actual = parseUserAnswerValue(userInput);
     if (expected === null || actual === null) return false;
-    return Math.abs(expected - actual) < 0.01;
+    return valuesMatch(expected, actual);
   };
 
   const isFinalCheckpointMatch = (userInput: string): boolean => {
@@ -250,7 +290,7 @@ export default function StudyPage() {
     const expected = parseCheckpointValue(lastStep.checkpoint);
     const actual = parseUserAnswerValue(userInput);
     if (expected === null || actual === null) return false;
-    return Math.abs(expected - actual) < 0.01;
+    return valuesMatch(expected, actual);
   };
 
   const normalizeCommaSeparatedEquations = (s: string): string[] => {
@@ -273,12 +313,32 @@ export default function StudyPage() {
     return a.every((eq, i) => eq === b[i]);
   };
 
+  const normalizeForCheckpointCompare = (s: string): string =>
+    (s || "").trim().replace(/\s+/g, " ");
+  const compactForCheckpointCompare = (s: string): string =>
+    normalizeForCheckpointCompare(s).replace(/\s+/g, "");
+
+  const isExactCheckpointMatch = (
+    expectedCheckpoint: string,
+    studentInput: string,
+  ): boolean => {
+    if (!expectedCheckpoint?.trim() || !studentInput?.trim()) return false;
+    const a = normalizeForCheckpointCompare(expectedCheckpoint);
+    const b = normalizeForCheckpointCompare(studentInput);
+    if (a === b) return true;
+    return (
+      compactForCheckpointCompare(expectedCheckpoint) ===
+      compactForCheckpointCompare(studentInput)
+    );
+  };
+
   const tryBypassByGradingFinalStep = async (
     studentInput: string,
   ): Promise<boolean> => {
     if (!stepData?.steps?.length || !studentInput.trim()) return false;
     const lastStep = stepData.steps[stepData.steps.length - 1];
     try {
+      const normalizedInput = normalizeStepInput(studentInput);
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,7 +347,7 @@ export default function StudyPage() {
           targetVariable: stepData.targetVariable,
           stepInstruction: lastStep.instruction,
           expectedCheckpoint: lastStep.checkpoint,
-          studentInput,
+          studentInput: normalizedInput,
         }),
       });
       if (!resp.ok) return false;
@@ -303,12 +363,14 @@ export default function StudyPage() {
 
     let correctValue: number | null = null;
 
-    if (equationData?.substitutedEquation) {
+    if (stepData?.finalAnswer?.trim()) {
+      correctValue = parseFinalAnswerValue(stepData.finalAnswer);
+    }
+    if (correctValue === null && equationData?.substitutedEquation) {
       correctValue = extractAnswerFromEquation(
         equationData.substitutedEquation,
       );
     }
-
     if (correctValue === null && problem) {
       const answerMatch = problem.match(
         /(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i,
@@ -328,8 +390,13 @@ export default function StudyPage() {
       return false;
     }
 
-    const tolerance = 0.01;
-    const isCorrect = Math.abs(studentValue - correctValue) < tolerance;
+    const tolerance = 0.02;
+    const relTolerance = 1e-6;
+    const diff = Math.abs(studentValue - correctValue);
+    const isCorrect =
+      diff < tolerance ||
+      diff <
+        Math.max(Math.abs(studentValue), Math.abs(correctValue)) * relTolerance;
 
     setCorrectAnswer(correctValue.toString());
     return isCorrect;
@@ -455,6 +522,8 @@ export default function StudyPage() {
       setMistakeSummaryLoading(false);
       setCurrentProblemTopicIds([]);
       setCurrentProblemCategoryName(null);
+      setCompletedSteps([]);
+      setExpandedStep({});
 
       const topicIds = Array.from(selectedTopics);
       const queryParams =
@@ -577,6 +646,8 @@ export default function StudyPage() {
       setStepFeedbackText(null);
       setStepFeedbackCorrect(null);
       setStepAttemptsByIndex({});
+      setCompletedSteps([]);
+      setExpandedStep({});
       return;
     }
 
@@ -680,6 +751,52 @@ export default function StudyPage() {
     setPracticeFeedback(null);
 
     if (isCommaSeparatedCheckpointMatch(step.checkpoint, practiceAnswer)) {
+      const timestamp = new Date().toLocaleString();
+      const stepRecord: CompletedStep = {
+        stepIndex: currentStepIndex,
+        instruction: step.instruction,
+        correct: practiceAnswer,
+        response: "Correct.",
+        timestamp,
+      };
+      setCompletedSteps((prev) => {
+        const next = prev.filter((s) => s.stepIndex !== currentStepIndex);
+        next.push(stepRecord);
+        return next.sort((a, b) => a.stepIndex - b.stepIndex);
+      });
+      setStepFeedbackCorrect(true);
+      setStepFeedbackText("Correct.");
+      setLastCorrectStepIndex(currentStepIndex);
+      setPracticeAnswer("");
+      setPracticeFeedback("submitted");
+      const next = currentStepIndex + 1;
+      if (next >= stepData.steps.length) {
+        setCurrentStepIndex(stepData.steps.length);
+        if (stepData.finalAnswer) {
+          setStepFeedbackText(
+            `Correct. Finished. Final answer: ${stepData.finalAnswer}`,
+          );
+        }
+      } else {
+        setCurrentStepIndex(next);
+      }
+      return;
+    }
+
+    if (isExactCheckpointMatch(step.checkpoint, practiceAnswer)) {
+      const timestamp = new Date().toLocaleString();
+      const stepRecord: CompletedStep = {
+        stepIndex: currentStepIndex,
+        instruction: step.instruction,
+        correct: practiceAnswer,
+        response: "Correct.",
+        timestamp,
+      };
+      setCompletedSteps((prev) => {
+        const next = prev.filter((s) => s.stepIndex !== currentStepIndex);
+        next.push(stepRecord);
+        return next.sort((a, b) => a.stepIndex - b.stepIndex);
+      });
       setStepFeedbackCorrect(true);
       setStepFeedbackText("Correct.");
       setLastCorrectStepIndex(currentStepIndex);
@@ -700,6 +817,7 @@ export default function StudyPage() {
     }
 
     try {
+      const studentInput = normalizeStepInput(practiceAnswer);
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -708,7 +826,7 @@ export default function StudyPage() {
           targetVariable: stepData.targetVariable,
           stepInstruction: step.instruction,
           expectedCheckpoint: step.checkpoint,
-          studentInput: practiceAnswer,
+          studentInput,
         }),
       });
 
@@ -727,6 +845,19 @@ export default function StudyPage() {
             : "Incorrect.";
 
       if (correct) {
+        const timestamp = new Date().toLocaleString();
+        const stepRecord: CompletedStep = {
+          stepIndex: currentStepIndex,
+          instruction: step.instruction,
+          correct: practiceAnswer,
+          response: feedback,
+          timestamp,
+        };
+        setCompletedSteps((prev) => {
+          const next = prev.filter((s) => s.stepIndex !== currentStepIndex);
+          next.push(stepRecord);
+          return next.sort((a, b) => a.stepIndex - b.stepIndex);
+        });
         setStepFeedbackCorrect(true);
         setStepFeedbackText(feedback);
         setLastCorrectStepIndex(currentStepIndex);
@@ -787,7 +918,11 @@ export default function StudyPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ problem, mistakes: mistakesCollected }),
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load summary"))))
+      .then((res) =>
+        res.ok
+          ? res.json()
+          : Promise.reject(new Error("Failed to load summary")),
+      )
       .then((data) => {
         if (!cancelled && typeof data?.summary === "string") {
           setMistakeSummary(data.summary);
@@ -822,16 +957,6 @@ export default function StudyPage() {
               style={styles.image}
               contentFit="contain"
             />
-            {/* Arrow Button */}
-            <button
-              style={styles.arrowButton}
-              onClick={() => {
-                // TODO: Add navigation to new page
-                console.log("Arrow button clicked");
-              }}
-            >
-              <Ionicons name="arrow-forward" size={28} color="#ffffff" />
-            </button>
           </div>
 
           {/* Start Learning Today Block - Full Bottom */}
@@ -845,12 +970,23 @@ export default function StudyPage() {
                 feedback.
               </ThemedText>
             </div>
-            <button
-              style={styles.getStartedButton}
-              onClick={() => setShowStudyInterface(true)}
-            >
-              Get Started
-            </button>
+            <div style={styles.startBlockButtons}>
+              <button
+                style={styles.getStartedButton}
+                onClick={() => setShowStudyInterface(true)}
+              >
+                Get Started
+              </button>
+              <button
+                style={styles.arrowButton}
+                onClick={() => {
+                  // TODO: Add navigation to new page
+                  console.log("Arrow button clicked");
+                }}
+              >
+                <Ionicons name="arrow-forward" size={28} color="#ffffff" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -886,7 +1022,11 @@ export default function StudyPage() {
             <div style={styles.chatModalHeader}>
               <div style={styles.chatModalHeaderLeft}>
                 <div style={styles.chatModalAvatar}>
-                  <Ionicons name="chatbubble-ellipses" size={20} color="#a78bfa" />
+                  <Ionicons
+                    name="chatbubble-ellipses"
+                    size={20}
+                    color="#a78bfa"
+                  />
                 </div>
                 <div>
                   <ThemedText type="subtitle" style={styles.chatModalTitle}>
@@ -907,8 +1047,8 @@ export default function StudyPage() {
             <div style={styles.chatModalMessages}>
               <div style={styles.chatBubbleBot}>
                 <p style={styles.chatBubbleText}>
-                  Hi! Chat with me here when you need help. You’ll be able to ask
-                  questions and get guidance on your current problem soon.
+                  Hi! Chat with me here when you need help. You’ll be able to
+                  ask questions and get guidance on your current problem soon.
                 </p>
               </div>
             </div>
@@ -934,437 +1074,682 @@ export default function StudyPage() {
       )}
 
       <div style={styles.scrollContainer}>
-        <div style={{ maxWidth: 900, margin: "0 auto" }}>
-          <div style={styles.backButtonContainer}>
-            <button
-              style={styles.backButton}
-              onClick={() => setShowStudyInterface(false)}
-            >
-              <ThemedText style={styles.backButtonText}>← Back</ThemedText>
-            </button>
-          </div>
-          <ThemedView style={styles.titleContainer}>
-            <ThemedText type="title">Study</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={styles.inputContainer}>
-            <ThemedText style={styles.inputLabel}>
-              Enter Your Math Problem:
-            </ThemedText>
-            <textarea
-              style={styles.textInput}
-              placeholder="e.g., A car travels 120 km in 2 hours. What is its speed?"
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              rows={4}
-              maxLength={2000}
-            />
-            {inputError && (
-              <ThemedText style={styles.inputErrorText}>
-                {inputError}
-              </ThemedText>
-            )}
-            <ThemedText style={styles.characterCount}>
-              {userInput.length}/2000 characters
-            </ThemedText>
-          </ThemedView>
-
-          <ThemedView style={styles.buttonRow}>
-            <button
-              style={{
-                ...styles.submitButton,
-                ...(loading ? styles.buttonDisabled : {}),
-              }}
-              onClick={handleSubmitCustomProblem}
-              disabled={loading}
-            >
-              <ThemedText style={styles.buttonText}>
-                {loading ? "Processing..." : "Submit Problem"}
-              </ThemedText>
-            </button>
-            <button
-              style={{
-                ...styles.generateButton,
-                ...(loading ? styles.buttonDisabled : {}),
-              }}
-              onClick={fetchMathProblem}
-              disabled={loading}
-            >
-              <ThemedText style={styles.generateButtonText}>
-                Random Problem
-              </ThemedText>
-            </button>
-          </ThemedView>
-
-          {loading && !problem ? (
-            <div style={styles.centerContent}>
-              <div style={styles.spinner} />
-              <ThemedText style={styles.loadingText}>
-                Generating problem...
-              </ThemedText>
-            </div>
-          ) : problem ? (
-            <>
-              <ThemedView style={styles.problemBox}>
-                <ThemedText style={styles.problemText}>{problem}</ThemedText>
+        <div style={styles.practiceLayout}>
+          <div style={styles.practiceCentralContent}>
+            <div style={styles.pinMain}>
+              <div style={styles.backButtonContainer}>
+                <button
+                  style={styles.backButton}
+                  onClick={() => setShowStudyInterface(false)}
+                >
+                  <ThemedText style={styles.backButtonText}>← Back</ThemedText>
+                </button>
+              </div>
+              <ThemedView style={styles.titleContainer}>
+                <ThemedText type="title">Study</ThemedText>
               </ThemedView>
 
-              {equationData && (
-                <>
-                  <ThemedView style={styles.equationContainer}>
-                    <ThemedText type="subtitle" style={styles.equationLabel}>
-                      Extracted Equation:
-                    </ThemedText>
-
-                    <ThemedView style={styles.equationBox}>
-                      <ThemedText style={styles.equationTitle}>
-                        Template:
-                      </ThemedText>
-                      <LaTeXRenderer equation={equationData.equation} />
-                    </ThemedView>
-
-                    {equationData.variables &&
-                      equationData.variables.length > 0 && (
-                        <ThemedView style={styles.variablesBox}>
-                          <ThemedText style={styles.equationTitle}>
-                            Variables:
-                          </ThemedText>
-                          {equationData.variables.map((variable, index) => (
-                            <div key={index} style={styles.variableItem}>
-                              <ThemedText>{variable}</ThemedText>
-                            </div>
-                          ))}
-                        </ThemedView>
-                      )}
-
-                    {equationData.substitutedEquation && (
-                      <ThemedView style={styles.equationBox}>
-                        <ThemedText style={styles.equationTitle}>
-                          With Values:
-                        </ThemedText>
-                        <LaTeXRenderer
-                          equation={equationData.substitutedEquation}
-                        />
-                      </ThemedView>
-                    )}
-                  </ThemedView>
-
-                  <button
-                    style={styles.saveButton}
-                    onClick={saveEquationAsJSON}
-                  >
-                    <ThemedText style={styles.buttonText}>
-                      Save as JSON
-                    </ThemedText>
-                  </button>
-                </>
-              )}
-
-              {/* Step-by-step (checkpoints) uses the existing answer box below */}
-              {equationData?.substitutedEquation && (
-                <ThemedView style={styles.stepSection}>
-                  <ThemedText type="subtitle" style={styles.stepTitle}>
-                    Step-by-step (checkpoints)
-                  </ThemedText>
-
-                  {stepLoading ? (
-                    <ThemedText style={styles.loadingText}>
-                      Loading steps…
-                    </ThemedText>
-                  ) : stepError ? (
-                    <ThemedText style={styles.inputErrorText}>
-                      {stepError}
-                    </ThemedText>
-                  ) : stepData && stepData.steps.length > 0 ? (
-                    <>
-                      <ThemedText style={styles.stepMeta}>
-                        Step{" "}
-                        {Math.min(currentStepIndex + 1, stepData.steps.length)}{" "}
-                        of {stepData.steps.length}
-                      </ThemedText>
-
-                      {currentStepIndex >= stepData.steps.length && (
-                        <ThemedText style={styles.feedbackCorrect}>
-                          ✓ Completed all steps.
-                          {stepData.finalAnswer
-                            ? ` Final answer: ${stepData.finalAnswer}`
-                            : ""}
-                        </ThemedText>
-                      )}
-
-                      {stepFeedbackText && (
-                        <ThemedText
-                          style={
-                            stepFeedbackCorrect === true
-                              ? styles.feedbackCorrect
-                              : styles.feedbackIncorrect
-                          }
-                        >
-                          {stepFeedbackText}
-                        </ThemedText>
-                      )}
-
-                      {currentStepIndex < stepData.steps.length && (
-                        <ThemedText style={styles.stepAttempts}>
-                          Attempts on this step:{" "}
-                          {stepAttemptsByIndex[currentStepIndex] ?? 0}
-                        </ThemedText>
-                      )}
-
-                      {currentStepIndex >= stepData.steps.length &&
-                        mistakesCollected.length > 0 && (
-                          <div style={styles.mistakeSummaryBox}>
-                            <ThemedText
-                              type="subtitle"
-                              style={styles.mistakeSummaryTitle}
-                            >
-                              Summary of mistakes
-                            </ThemedText>
-                            {mistakeSummaryLoading ? (
-                              <ThemedText style={styles.mistakeSummaryText}>
-                                Loading…
-                              </ThemedText>
-                            ) : mistakeSummary ? (
-                              <p style={styles.mistakeSummaryText}>
-                                {mistakeSummary}
-                              </p>
-                            ) : null}
-                            {(getAreasToWorkOn(currentProblemTopicIds) ||
-                              currentProblemCategoryName) && (
-                              <div style={styles.mistakeSummaryWorkOn}>
-                                <strong>
-                                  Work on:{" "}
-                                  {getAreasToWorkOn(currentProblemTopicIds) ||
-                                    currentProblemCategoryName}
-                                </strong>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                    </>
-                  ) : null}
-                </ThemedView>
-              )}
-
-              <ThemedView style={styles.answerSection}>
-                <ThemedText style={styles.answerLabel}>
-                  {stepData &&
-                  stepData.steps.length > 0 &&
-                  currentStepIndex < stepData.steps.length
-                    ? "Your Step Result:"
-                    : "Your Answer:"}
-                </ThemedText>
-
-                {stepData &&
-                  stepData.steps.length > 0 &&
-                  currentStepIndex < stepData.steps.length && (
-                    <ThemedText style={styles.stepInstruction}>
-                      {stepData.steps[currentStepIndex]?.instruction}
-                    </ThemedText>
-                  )}
-
-                <ThemedText style={styles.inputHint}>
-                  {stepData &&
-                  stepData.steps.length > 0 &&
-                  currentStepIndex < stepData.steps.length
-                    ? "Tip: Type the equation after this step (e.g. '2x = 10'), or enter the final answer to skip ahead."
-                    : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
+              <ThemedView style={styles.inputContainer}>
+                <ThemedText style={styles.inputLabel}>
+                  Enter Your Math Problem:
                 </ThemedText>
                 <textarea
-                  style={styles.answerInput}
-                  placeholder={
-                    stepData &&
-                    stepData.steps.length > 0 &&
-                    currentStepIndex < stepData.steps.length
-                      ? "Example: 2x = 10 or x + 5 = 15"
-                      : "Example: 42 or x = 42"
-                  }
-                  value={practiceAnswer}
-                  onChange={(e) => {
-                    setPracticeAnswer(e.target.value);
-                    setPracticeFeedback(null);
-                    setStepFeedbackText(null);
-                    setStepFeedbackCorrect(null);
-                  }}
-                  rows={3}
-                  disabled={
-                    (stepData &&
-                      stepData.steps.length > 0 &&
-                      currentStepIndex >= stepData.steps.length &&
-                      answerCorrect === true) ||
-                    false
-                  }
+                  style={styles.textInput}
+                  placeholder="e.g., A car travels 120 km in 2 hours. What is its speed?"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  rows={4}
+                  maxLength={2000}
                 />
-
-                {practiceFeedback && (
-                  <ThemedText
-                    style={
-                      practiceFeedback === "submitted"
-                        ? styles.feedbackSubmitted
-                        : styles.feedbackCanceled
-                    }
-                  >
-                    {practiceFeedback === "submitted"
-                      ? "Submitted"
-                      : "Canceled"}
+                {inputError && (
+                  <ThemedText style={styles.inputErrorText}>
+                    {inputError}
                   </ThemedText>
                 )}
+                <ThemedText style={styles.characterCount}>
+                  {userInput.length}/2000 characters
+                </ThemedText>
+              </ThemedView>
 
-                {currentHint && (
-                  <div style={styles.hintBox}>
-                    <div style={styles.hintHeader}>
-                      <span style={styles.hintTitle}>Hint {hintLevel}/3</span>
-                      <button
-                        onClick={resetHints}
-                        style={styles.closeHintButton}
-                      >
-                        X
-                      </button>
-                    </div>
-                    <p style={styles.hintText}>{currentHint}</p>
-                  </div>
-                )}
+              <ThemedView style={styles.buttonRow}>
+                <button
+                  style={{
+                    ...styles.submitButton,
+                    ...(loading ? styles.buttonDisabled : {}),
+                  }}
+                  onClick={handleSubmitCustomProblem}
+                  disabled={loading}
+                >
+                  <ThemedText style={styles.buttonText}>
+                    {loading ? "Processing..." : "Submit Problem"}
+                  </ThemedText>
+                </button>
+                <button
+                  style={{
+                    ...styles.generateButton,
+                    ...(loading ? styles.buttonDisabled : {}),
+                  }}
+                  onClick={fetchMathProblem}
+                  disabled={loading}
+                >
+                  <ThemedText style={styles.generateButtonText}>
+                    Random Problem
+                  </ThemedText>
+                </button>
+              </ThemedView>
 
-                <div style={styles.answerButtons}>
-                  <button
-                    onClick={async () => {
-                      if (
-                        stepData &&
-                        stepData.steps.length > 0 &&
-                        currentStepIndex < stepData.steps.length
-                      ) {
-                        if (
-                          isFinalAnswerMatch(practiceAnswer) ||
-                          isFinalCheckpointMatch(practiceAnswer)
-                        ) {
-                          setStepFeedbackCorrect(true);
-                          setStepFeedbackText(
-                            `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
-                          );
-                          setCurrentStepIndex(stepData.steps.length);
-                          setPracticeAnswer("");
-                          setPracticeFeedback("submitted");
-                          return;
-                        }
-                        setCheckingBypass(true);
-                        setStepFeedbackText(null);
-                        setStepFeedbackCorrect(null);
-                        const bypassOk =
-                          await tryBypassByGradingFinalStep(practiceAnswer);
-                        setCheckingBypass(false);
-                        if (bypassOk) {
-                          setStepFeedbackCorrect(true);
-                          setStepFeedbackText(
-                            `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
-                          );
-                          setCurrentStepIndex(stepData.steps.length);
-                          setPracticeAnswer("");
-                          setPracticeFeedback("submitted");
-                          return;
-                        }
-                        submitStepAttempt();
-                        return;
-                      }
-
-                      const isCorrect = checkAnswer(practiceAnswer);
-                      setAnswerCorrect(isCorrect);
-                      setPracticeFeedback("submitted");
-                    }}
-                    style={styles.submitAnswerButton}
-                    disabled={
-                      !practiceAnswer.trim() ||
-                      checkingBypass ||
-                      (stepData &&
-                        stepData.steps.length > 0 &&
-                        currentStepIndex >= stepData.steps.length &&
-                        answerCorrect === true) ||
-                      false
-                    }
-                  >
-                    <ThemedText style={styles.buttonText}>Submit</ThemedText>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPracticeFeedback("canceled");
-                      setPracticeAnswer("");
-                      setAnswerCorrect(null);
-                      setCorrectAnswer(null);
-                      setStepFeedbackText(null);
-                      setStepFeedbackCorrect(null);
-                    }}
-                    style={styles.cancelAnswerButton}
-                  >
-                    <ThemedText style={styles.cancelButtonText}>
-                      Cancel
-                    </ThemedText>
-                  </button>
-                  <button
-                    onClick={handleGetHint}
-                    style={{
-                      ...styles.hintButton,
-                      ...(loadingHint || hintLevel >= 3
-                        ? styles.buttonDisabled
-                        : {}),
-                    }}
-                    disabled={loadingHint || hintLevel >= 3}
-                  >
-                    <ThemedText style={styles.hintButtonText}>
-                      {loadingHint
-                        ? "Loading..."
-                        : hintLevel >= 3
-                          ? "No More Hints"
-                          : `Get Hint${hintLevel > 0 ? ` (${hintLevel}/3)` : ""}`}
-                    </ThemedText>
-                  </button>
+              {loading && !problem ? (
+                <div style={styles.centerContent}>
+                  <div style={styles.spinner} />
+                  <ThemedText style={styles.loadingText}>
+                    Generating problem...
+                  </ThemedText>
                 </div>
-                {practiceFeedback === "submitted" &&
-                  !(
-                    stepData &&
-                    stepData.steps.length > 0 &&
-                    currentStepIndex < stepData.steps.length
-                  ) &&
-                  answerCorrect !== null && (
-                    <div
-                      style={
-                        answerCorrect
-                          ? styles.feedbackCorrect
-                          : styles.feedbackIncorrect
-                      }
-                    >
-                      {answerCorrect ? (
-                        "✓ Correct! Great job!"
-                      ) : (
+              ) : problem ? (
+                <>
+                  <ThemedView style={styles.problemBox}>
+                    <ThemedText style={styles.problemText}>
+                      {problem}
+                    </ThemedText>
+                  </ThemedView>
+
+                  {equationData && (
+                    <>
+                      {false && (
+                        <ThemedView style={styles.equationContainer}>
+                          <ThemedText
+                            type="subtitle"
+                            style={styles.equationLabel}
+                          >
+                            Extracted Equation:
+                          </ThemedText>
+                          <ThemedView style={styles.equationBox}>
+                            <ThemedText style={styles.equationTitle}>
+                              Template:
+                            </ThemedText>
+                            <LaTeXRenderer equation={equationData.equation} />
+                          </ThemedView>
+                          {equationData.variables &&
+                            equationData.variables.length > 0 && (
+                              <ThemedView style={styles.variablesBox}>
+                                <ThemedText style={styles.equationTitle}>
+                                  Variables:
+                                </ThemedText>
+                                {equationData.variables.map(
+                                  (variable, index) => (
+                                    <div
+                                      key={index}
+                                      style={styles.variableItem}
+                                    >
+                                      <ThemedText>{variable}</ThemedText>
+                                    </div>
+                                  ),
+                                )}
+                              </ThemedView>
+                            )}
+                          {equationData.substitutedEquation && (
+                            <ThemedView style={styles.equationBox}>
+                              <ThemedText style={styles.equationTitle}>
+                                With Values:
+                              </ThemedText>
+                              <LaTeXRenderer
+                                equation={equationData.substitutedEquation}
+                              />
+                            </ThemedView>
+                          )}
+                        </ThemedView>
+                      )}
+                      {false && (
+                        <button
+                          style={styles.saveButton}
+                          onClick={saveEquationAsJSON}
+                        >
+                          <ThemedText style={styles.buttonText}>
+                            Save as JSON
+                          </ThemedText>
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {/* Step-by-step (checkpoints) uses the existing answer box below */}
+                  {equationData?.substitutedEquation && (
+                    <ThemedView style={styles.stepSection}>
+                      <ThemedText type="subtitle" style={styles.stepTitle}>
+                        Step-by-step (checkpoints)
+                      </ThemedText>
+
+                      {stepLoading ? (
+                        <ThemedText style={styles.loadingText}>
+                          Loading steps…
+                        </ThemedText>
+                      ) : stepError ? (
+                        <ThemedText style={styles.inputErrorText}>
+                          {stepError}
+                        </ThemedText>
+                      ) : stepData && stepData.steps.length > 0 ? (
                         <>
-                          <span>
-                            ✗ Incorrect.{" "}
-                            {correctAnswer
-                              ? `The correct answer is ${correctAnswer}.`
-                              : "Please try again."}
-                          </span>
-                          {(getAreasToWorkOn(currentProblemTopicIds) ||
-                            currentProblemCategoryName) && (
-                              <div style={styles.feedbackWorkOn}>
-                                <strong>
-                                  Work on:{" "}
-                                  {getAreasToWorkOn(currentProblemTopicIds) ||
-                                    currentProblemCategoryName}
-                                </strong>
+                          {(() => {
+                            const totalSteps = stepData.steps.length;
+                            const isComplete = currentStepIndex >= totalSteps;
+                            const displayStepNum = isComplete
+                              ? totalSteps
+                              : Math.max(
+                                  1,
+                                  Math.min(currentStepIndex + 1, totalSteps),
+                                );
+                            const effectiveIndex = Math.min(
+                              Math.max(0, currentStepIndex),
+                              totalSteps - 1,
+                            );
+                            return (
+                              <>
+                                <ThemedText style={styles.stepMeta}>
+                                  {isComplete ? (
+                                    <>
+                                      Completed: {totalSteps} of {totalSteps}{" "}
+                                      steps
+                                    </>
+                                  ) : (
+                                    <>
+                                      Step {displayStepNum} of {totalSteps}
+                                    </>
+                                  )}
+                                </ThemedText>
+
+                                {isComplete && (
+                                  <ThemedText style={styles.feedbackCorrect}>
+                                    ✓ Completed all steps.
+                                    {stepData.finalAnswer
+                                      ? ` Final answer: ${stepData.finalAnswer}`
+                                      : ""}
+                                  </ThemedText>
+                                )}
+
+                                {stepFeedbackText && (
+                                  <ThemedText
+                                    style={
+                                      stepFeedbackCorrect === true
+                                        ? styles.feedbackCorrect
+                                        : styles.feedbackIncorrect
+                                    }
+                                  >
+                                    {stepFeedbackText}
+                                  </ThemedText>
+                                )}
+
+                                {!isComplete && (
+                                  <ThemedText style={styles.stepAttempts}>
+                                    Attempts on step {displayStepNum}:{" "}
+                                    {stepAttemptsByIndex[effectiveIndex] ?? 0}
+                                  </ThemedText>
+                                )}
+                              </>
+                            );
+                          })()}
+
+                          {currentStepIndex >= stepData.steps.length &&
+                            mistakesCollected.length > 0 && (
+                              <div style={styles.mistakeSummaryBox}>
+                                <ThemedText
+                                  type="subtitle"
+                                  style={styles.mistakeSummaryTitle}
+                                >
+                                  Summary of mistakes
+                                </ThemedText>
+                                {mistakeSummaryLoading ? (
+                                  <ThemedText style={styles.mistakeSummaryText}>
+                                    Loading…
+                                  </ThemedText>
+                                ) : mistakeSummary ? (
+                                  <p style={styles.mistakeSummaryText}>
+                                    {mistakeSummary}
+                                  </p>
+                                ) : null}
+                                {(getAreasToWorkOn(currentProblemTopicIds) ||
+                                  currentProblemCategoryName) && (
+                                  <div style={styles.mistakeSummaryWorkOn}>
+                                    <strong>
+                                      Work on:{" "}
+                                      {getAreasToWorkOn(
+                                        currentProblemTopicIds,
+                                      ) || currentProblemCategoryName}
+                                    </strong>
+                                  </div>
+                                )}
                               </div>
                             )}
                         </>
-                      )}
-                    </div>
+                      ) : null}
+                    </ThemedView>
                   )}
-              </ThemedView>
-            </>
-          ) : (
-            <ThemedView style={styles.centerContent}>
-              <ThemedText style={styles.emptyText}>
-                Enter a custom problem above or click "Random Problem" to get
-                started!
-              </ThemedText>
-            </ThemedView>
-          )}
+
+                  {completedSteps.length > 0 && (
+                    <ThemedView style={styles.completedStepsContainer}>
+                      <ThemedText style={styles.completedStepsHeader}>
+                        Previous Work:
+                      </ThemedText>
+                      <ThemedText style={styles.completedStepsTitle}>
+                        These Steps Are Correct. Expand to see more Details...
+                      </ThemedText>
+                      {completedSteps.map((stepItem) => {
+                        const expanded =
+                          expandedStep[stepItem.stepIndex] === true;
+                        return (
+                          <div
+                            key={stepItem.stepIndex}
+                            style={styles.completedRow}
+                          >
+                            <div style={styles.completedTopRow}>
+                              <ThemedText style={styles.completedStepBigLabel}>
+                                Step {stepItem.stepIndex + 1}
+                              </ThemedText>
+                              <ThemedText
+                                style={styles.completedStepSmallLabel}
+                              >
+                                Correct: {stepItem.correct}
+                              </ThemedText>
+                              <ThemedText
+                                style={styles.completedStepSmallLabel}
+                              >
+                                Completed At: {stepItem.timestamp}
+                              </ThemedText>
+                            </div>
+                            <button
+                              type="button"
+                              style={styles.completedButton}
+                              onClick={() => {
+                                setExpandedStep((prev) => {
+                                  const next: Record<number, boolean> = {};
+                                  for (const i in prev) {
+                                    next[Number(i)] = prev[Number(i)];
+                                  }
+                                  next[stepItem.stepIndex] =
+                                    !prev[stepItem.stepIndex];
+                                  return next;
+                                });
+                              }}
+                            >
+                              {expanded ? "Hide" : "View"}
+                            </button>
+                            {expanded && (
+                              <div style={styles.expandedMainContainer}>
+                                <ThemedText style={styles.expandedHeader}>
+                                  Instruction:
+                                </ThemedText>
+                                <ThemedText style={styles.expandedText}>
+                                  {stepItem.instruction}
+                                </ThemedText>
+                                {stepItem.response && (
+                                  <>
+                                    <ThemedText style={styles.expandedLabel}>
+                                      Feedback:
+                                    </ThemedText>
+                                    <ThemedText style={styles.expandedText}>
+                                      {stepItem.response}
+                                    </ThemedText>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </ThemedView>
+                  )}
+
+                  <ThemedView style={styles.answerSection}>
+                    {(() => {
+                      const allStepsComplete =
+                        !!stepData?.steps?.length &&
+                        currentStepIndex >= stepData.steps.length;
+                      const finalAnswerCorrect =
+                        answerCorrect === true && !stepData?.steps?.length;
+                      const problemDone =
+                        allStepsComplete || finalAnswerCorrect;
+                      if (problemDone) {
+                        return (
+                          <>
+                            <div style={styles.feedbackCorrect}>
+                              Correct! Great job!
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => fetchMathProblem()}
+                              style={styles.nextProblemButton}
+                              disabled={loading}
+                            >
+                              <ThemedText style={styles.buttonText}>
+                                {loading ? "Loading..." : "Next Problem"}
+                              </ThemedText>
+                            </button>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
+                    {(() => {
+                      const allStepsComplete =
+                        !!stepData?.steps?.length &&
+                        currentStepIndex >= stepData.steps.length;
+                      const finalAnswerCorrect =
+                        answerCorrect === true && !stepData?.steps?.length;
+                      const problemDone =
+                        allStepsComplete || finalAnswerCorrect;
+                      return !problemDone;
+                    })() && (
+                      <>
+                        <ThemedText style={styles.answerLabel}>
+                          {stepData &&
+                          stepData.steps.length > 0 &&
+                          currentStepIndex < stepData.steps.length
+                            ? "Your Step Result:"
+                            : "Your Answer:"}
+                        </ThemedText>
+
+                        {stepData &&
+                          stepData.steps.length > 0 &&
+                          currentStepIndex < stepData.steps.length && (
+                            <div style={styles.stepInstructionRow}>
+                              <ThemedText style={styles.stepInstruction}>
+                                {stepData.steps[currentStepIndex]?.instruction}
+                              </ThemedText>
+                              <button
+                                type="button"
+                                style={styles.pinConfirm}
+                                onClick={() => {
+                                  const instruction =
+                                    stepData.steps[currentStepIndex]
+                                      ?.instruction ?? "";
+                                  setPinVisibility(true);
+                                  setPinned({
+                                    title: `Step ${currentStepIndex + 1}`,
+                                    body: instruction,
+                                    typeOfInfo: "step",
+                                  });
+                                }}
+                              >
+                                Pin Step
+                              </button>
+                            </div>
+                          )}
+
+                        <ThemedText style={styles.inputHint}>
+                          {stepData &&
+                          stepData.steps.length > 0 &&
+                          currentStepIndex < stepData.steps.length
+                            ? "Tip: Enter the equation after this step, or type the final answer (e.g. x = 500) to skip ahead and complete the problem."
+                            : "Tip: You can type just the number (like '42') or the full equation (like 'x = 42')"}
+                        </ThemedText>
+                        <textarea
+                          style={styles.answerInput}
+                          placeholder={
+                            stepData &&
+                            stepData.steps.length > 0 &&
+                            currentStepIndex < stepData.steps.length
+                              ? "This step: 2x = 10 — or final answer to skip: x = 500"
+                              : "Example: 42 or x = 42"
+                          }
+                          value={practiceAnswer}
+                          onChange={(e) => {
+                            setPracticeAnswer(e.target.value);
+                            setPracticeFeedback(null);
+                            setStepFeedbackText(null);
+                            setStepFeedbackCorrect(null);
+                          }}
+                          rows={3}
+                          disabled={
+                            (stepData &&
+                              stepData.steps.length > 0 &&
+                              currentStepIndex >= stepData.steps.length &&
+                              answerCorrect === true) ||
+                            false
+                          }
+                        />
+
+                        <div
+                          style={{
+                            marginTop: 6,
+                            display: "flex",
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setShowCheatSheet((v) => !v)}
+                            style={styles.debugLink}
+                          >
+                            {showCheatSheet ? "Hide (Demo)" : "Show (Demo)"}
+                          </button>
+                        </div>
+
+                        {showCheatSheet &&
+                          stepData &&
+                          stepData.steps.length > 0 &&
+                          currentStepIndex < stepData.steps.length && (
+                            <div style={styles.debugBox}>
+                              <div style={styles.debugLine}>
+                                <span style={styles.debugLabel}>
+                                  {" "}
+                                  Expected :{" "}
+                                </span>
+                                <span style={styles.debugSingle}>
+                                  {stepData.steps[currentStepIndex]?.checkpoint}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                        {practiceFeedback && (
+                          <ThemedText
+                            style={
+                              practiceFeedback === "submitted"
+                                ? styles.feedbackSubmitted
+                                : styles.feedbackCanceled
+                            }
+                          >
+                            {practiceFeedback === "submitted"
+                              ? "Submitted"
+                              : "Canceled"}
+                          </ThemedText>
+                        )}
+
+                        {currentHint && (
+                          <div style={styles.hintBox}>
+                            <div style={styles.hintHeader}>
+                              <span style={styles.hintTitle}>
+                                Hint {hintLevel}/3
+                              </span>
+                              <div style={styles.hintHeaderButtons}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPinVisibility(true);
+                                    setPinned({
+                                      title: `Hint ${hintLevel}/3`,
+                                      body: currentHint,
+                                      typeOfInfo: "hint",
+                                    });
+                                  }}
+                                  style={styles.pinHintButton}
+                                >
+                                  Pin
+                                </button>
+                              </div>
+                              <button
+                                onClick={resetHints}
+                                style={styles.closeHintButton}
+                              >
+                                X
+                              </button>
+                            </div>
+                            <p style={styles.hintText}>{currentHint}</p>
+                          </div>
+                        )}
+
+                        <div style={styles.answerButtons}>
+                          <button
+                            onClick={async () => {
+                              if (
+                                stepData &&
+                                stepData.steps.length > 0 &&
+                                currentStepIndex < stepData.steps.length
+                              ) {
+                                if (
+                                  isFinalAnswerMatch(practiceAnswer) ||
+                                  isFinalCheckpointMatch(practiceAnswer)
+                                ) {
+                                  setStepFeedbackCorrect(true);
+                                  setStepFeedbackText(
+                                    `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
+                                  );
+                                  setCurrentStepIndex(stepData.steps.length);
+                                  setPracticeAnswer("");
+                                  setPracticeFeedback("submitted");
+                                  return;
+                                }
+                                setCheckingBypass(true);
+                                setStepFeedbackText(null);
+                                setStepFeedbackCorrect(null);
+                                const bypassOk =
+                                  await tryBypassByGradingFinalStep(
+                                    practiceAnswer,
+                                  );
+                                setCheckingBypass(false);
+                                if (bypassOk) {
+                                  setStepFeedbackCorrect(true);
+                                  setStepFeedbackText(
+                                    `Correct! ${stepData.finalAnswer ? `Final answer: ${stepData.finalAnswer}` : "You completed the problem."}`,
+                                  );
+                                  setCurrentStepIndex(stepData.steps.length);
+                                  setPracticeAnswer("");
+                                  setPracticeFeedback("submitted");
+                                  return;
+                                }
+                                submitStepAttempt();
+                                return;
+                              }
+
+                              const isCorrect = checkAnswer(practiceAnswer);
+                              setAnswerCorrect(isCorrect);
+                              setPracticeFeedback("submitted");
+                            }}
+                            style={styles.submitAnswerButton}
+                            disabled={
+                              !practiceAnswer.trim() ||
+                              checkingBypass ||
+                              (stepData &&
+                                stepData.steps.length > 0 &&
+                                currentStepIndex >= stepData.steps.length &&
+                                answerCorrect === true) ||
+                              false
+                            }
+                          >
+                            <ThemedText style={styles.buttonText}>
+                              Submit
+                            </ThemedText>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setPracticeFeedback("canceled");
+                              setPracticeAnswer("");
+                              setAnswerCorrect(null);
+                              setCorrectAnswer(null);
+                              setStepFeedbackText(null);
+                              setStepFeedbackCorrect(null);
+                            }}
+                            style={styles.cancelAnswerButton}
+                          >
+                            <ThemedText style={styles.cancelButtonText}>
+                              Cancel
+                            </ThemedText>
+                          </button>
+                          <button
+                            onClick={handleGetHint}
+                            style={{
+                              ...styles.hintButton,
+                              ...(loadingHint || hintLevel >= 3
+                                ? styles.buttonDisabled
+                                : {}),
+                            }}
+                            disabled={loadingHint || hintLevel >= 3}
+                          >
+                            <ThemedText style={styles.hintButtonText}>
+                              {loadingHint
+                                ? "Loading..."
+                                : hintLevel >= 3
+                                  ? "No More Hints"
+                                  : `Get Hint${hintLevel > 0 ? ` (${hintLevel}/3)` : ""}`}
+                            </ThemedText>
+                          </button>
+                        </div>
+                        {practiceFeedback === "submitted" &&
+                          !(
+                            stepData &&
+                            stepData.steps.length > 0 &&
+                            currentStepIndex < stepData.steps.length
+                          ) &&
+                          answerCorrect !== null && (
+                            <div
+                              style={
+                                answerCorrect
+                                  ? styles.feedbackCorrect
+                                  : styles.feedbackIncorrect
+                              }
+                            >
+                              {answerCorrect ? (
+                                "✓ Correct! Great job!"
+                              ) : (
+                                <>
+                                  <span>
+                                    ✗ Incorrect.{" "}
+                                    {correctAnswer
+                                      ? `The correct answer is ${correctAnswer}.`
+                                      : "Please try again."}
+                                  </span>
+                                  {(getAreasToWorkOn(currentProblemTopicIds) ||
+                                    currentProblemCategoryName) && (
+                                    <div style={styles.feedbackWorkOn}>
+                                      <strong>
+                                        Work on:{" "}
+                                        {getAreasToWorkOn(
+                                          currentProblemTopicIds,
+                                        ) || currentProblemCategoryName}
+                                      </strong>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                      </>
+                    )}
+                  </ThemedView>
+                </>
+              ) : (
+                <ThemedView style={styles.centerContent}>
+                  <ThemedText style={styles.emptyText}>
+                    Enter a custom problem above or click "Random Problem" to
+                    get started!
+                  </ThemedText>
+                </ThemedView>
+              )}
+            </div>
+          </div>
+          <div style={styles.practiceRightGap}>
+            {pinVisibility && (
+              <div style={styles.pinResizeWrapper}>
+                <Pin
+                  pinned={pinned}
+                  clear={() => setPinned(null)}
+                  dismiss={() => {
+                    setPinned(null);
+                    setPinVisibility(false);
+                  }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1615,6 +2000,106 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#1d1d1f",
     letterSpacing: "-0.01em",
   },
+  completedStepsContainer: {
+    backgroundColor: "#ffffff",
+    padding: 16,
+    marginBottom: 16,
+    border: "1px solid rgba(167,139,250,0.18)",
+    borderRadius: 14,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
+    maxHeight: 300,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+  },
+  completedStepsHeader: {
+    display: "block",
+    fontSize: 20,
+    lineHeight: "24px",
+    fontWeight: "700",
+    marginBottom: 5,
+    color: "#6B46C1",
+  },
+  completedStepsTitle: {
+    display: "block",
+    fontSize: 13,
+    fontStyle: "normal",
+    lineHeight: 1.4,
+    color: "#86868b",
+    marginBottom: 14,
+  },
+  completedRow: {
+    backgroundColor: "#faf5ff",
+    borderRadius: 14,
+    border: "2px solid rgba(167,139,250,0.35)",
+    padding: 14,
+    marginBottom: 10,
+    boxShadow: "0 1px 3px rgba(167,139,250,0.1)",
+  },
+  completedTopRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 6,
+  },
+  completedStepSmallLabel: {
+    display: "block",
+    fontSize: 12,
+    opacity: 0.9,
+    color: "#86868b",
+    marginBottom: 2,
+  },
+  completedStepBigLabel: {
+    display: "block",
+    fontSize: 16,
+    color: "#1d1d1f",
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  completedButton: {
+    marginTop: 8,
+    borderRadius: 12,
+    border: "1.5px solid #A78BFA",
+    padding: "8px 12px",
+    cursor: "pointer",
+    backgroundColor: "#ffffff",
+    color: "#6B46C1",
+    fontSize: 12,
+    fontWeight: "500",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+  },
+  expandedMainContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: "1px solid rgba(167,139,250,0.2)",
+    maxHeight: 120,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingRight: 10,
+  },
+  expandedHeader: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 5,
+    color: "#6B46C1",
+  },
+  expandedLabel: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 5,
+    color: "#6B46C1",
+  },
+  expandedText: {
+    display: "block",
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 12,
+    color: "#1d1d1f",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    lineHeight: 1.5,
+  },
   answerLabel: {
     fontSize: 15,
     fontWeight: "500",
@@ -1655,6 +2140,18 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#a78bfa",
     borderRadius: 12,
     padding: 14,
+    border: "none",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    boxShadow: "0 1px 3px rgba(167, 139, 250, 0.3)",
+  },
+  nextProblemButton: {
+    marginTop: 16,
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#a78bfa",
+    borderRadius: 12,
+    padding: "16px 24px",
     border: "none",
     cursor: "pointer",
     transition: "all 0.2s ease",
@@ -1703,6 +2200,107 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+  },
+  hintHeaderButtons: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  pinHintButton: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B46C1",
+    border: "1px solid rgba(167,139,250,0.35)",
+    borderRadius: 10,
+    backgroundColor: "rgba(167,139,250,0.15)",
+    padding: "8px",
+    cursor: "pointer",
+  },
+  stepInstructionRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 10,
+  },
+  pinConfirm: {
+    fontSize: 14,
+    fontWeight: "700",
+    borderRadius: 12,
+    border: "1px solid rgba(167, 139, 250, 0.35)",
+    backgroundColor: "rgba(167, 139, 250, 0.15)",
+    padding: "8px",
+    alignSelf: "flex-start",
+    cursor: "pointer",
+    color: "#6B46C1",
+  },
+  debugLink: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 13,
+    color: "#6B46C1",
+    fontWeight: "600",
+    textDecoration: "underline",
+  },
+  debugBox: {
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: "#faf5ff",
+    borderRadius: 12,
+    border: "1px solid rgba(167, 139, 250, 0.25)",
+  },
+  debugLine: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    alignItems: "baseline",
+  },
+  debugLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B46C1",
+  },
+  debugSingle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1d1d1f",
+    fontFamily: "'SF Mono', 'Monaco', 'Menlo', monospace",
+  },
+  practiceLayout: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 900px) 260px",
+    justifyContent: "center",
+    columnGap: 24,
+    alignItems: "start",
+    maxWidth: "100%",
+    margin: "0 auto",
+  },
+  practiceCentralContent: {
+    minWidth: 0,
+  },
+  pinMain: {
+    minWidth: 0,
+  },
+  pinResizeWrapper: {
+    resize: "both",
+    overflow: "auto",
+    minWidth: 260,
+    minHeight: 220,
+    width: 320,
+    height: 380,
+    maxWidth: 560,
+    maxHeight: "85vh",
+    boxSizing: "border-box",
+  },
+  practiceRightGap: {
+    position: "sticky",
+    top: 120,
+    alignSelf: "start",
+    zIndex: 20,
+    minWidth: 0,
+    paddingLeft: 90,
+    boxSizing: "border-box",
+    overflow: "visible",
   },
   hintTitle: {
     fontSize: 13,
@@ -1788,6 +2386,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 16,
     padding: 20,
     boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+    border: "1px solid rgba(167, 139, 250, 0.2)",
   },
   page: {
     height: "100vh",
@@ -1827,10 +2426,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "100%",
     height: "100%",
   },
+  startBlockButtons: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    maxWidth: 800,
+    marginTop: 24,
+  },
   arrowButton: {
-    position: "absolute" as const,
-    right: 24,
-    bottom: 24,
     backgroundColor: "#a78bfa",
     width: 56,
     height: 56,
@@ -1842,7 +2447,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "center",
     boxShadow: "0 4px 12px rgba(167, 139, 250, 0.4)",
     transition: "all 0.2s ease",
-    zIndex: 10,
+    flexShrink: 0,
   },
   placeholderText: {
     fontSize: 17,
@@ -1896,7 +2501,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     boxShadow: "0 2px 8px rgba(167, 139, 250, 0.4)",
-    alignSelf: "flex-start",
     width: "auto",
     maxWidth: 450,
     textAlign: "center" as const,
@@ -2046,8 +2650,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     lineHeight: 1.5,
     color: "#1d1d1f",
     margin: 0,
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
     letterSpacing: "-0.01em",
   },
   chatModalFooter: {
@@ -2067,8 +2670,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "12px 18px",
     fontSize: 15,
     color: "#1d1d1f",
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
     outline: "none",
   },
   chatSendButton: {

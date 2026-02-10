@@ -1,8 +1,14 @@
 import { EquationData, HintGenerator } from "@/lib/hint-generator";
 import { useSubjects } from "@/lib/subjects-context";
 import { validateEquationSyntax, validateEquationTemplate } from "@/utilities/equationValidator";
+import { closeParens } from "@/utilities/input-validation";
 import { useEffect, useRef, useState } from "react";
 import Pin, {PinData} from "@/components/Pin";
+
+function normalizeStepInput(s: string): string {
+  const trimmed = (s || "").trim().replace(/\s+/g, " ");
+  return closeParens(trimmed);
+}
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -166,18 +172,22 @@ export default function MathLearningPlatform() {
   ): number | null => {
     try {
       const parts = substitutedEquation.split("=").map((p) => p.trim());
-      const lastPart = parts[parts.length - 1];
-
-      let expression = lastPart
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
-        .replace(/\s+/g, "");
-
-      if (/^[0-9+\-*/().\s]+$/.test(expression)) {
+      const tryPart = (part: string): number | null => {
+        const expression = part
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+          .replace(/\s+/g, "");
+        if (!/^[0-9+\-*/().\s]+$/.test(expression)) return null;
         const result = Function(`"use strict"; return (${expression})`)();
         if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
           return result;
         }
-      }
+        return null;
+      };
+      const lastPart = parts[parts.length - 1];
+      let value = tryPart(lastPart);
+      if (value !== null) return value;
+      if (parts.length >= 2) value = tryPart(parts[0]);
+      return value;
     } catch (e) {
       console.error("Error extracting answer from equation:", e);
     }
@@ -186,7 +196,7 @@ export default function MathLearningPlatform() {
 
   const normalizeAnswer = (answer: string): number | null => {
     try {
-      let cleaned = answer.trim();
+      let cleaned = (answer || "").trim();
       cleaned = cleaned.replace(
         /\s*(km\/h|km|hours?|hrs?|miles?|mph|units?|degrees?|°)\s*/gi,
         "",
@@ -196,6 +206,13 @@ export default function MathLearningPlatform() {
       const numberMatch = cleaned.match(/^-?\d+\.?\d*$/);
       if (numberMatch) {
         return parseFloat(numberMatch[0]);
+      }
+      const sciNotationMatch = cleaned.match(
+        /^-?\d+\.?\d*[eE][+-]?\d+$/,
+      );
+      if (sciNotationMatch) {
+        const n = parseFloat(sciNotationMatch[0]);
+        if (!isNaN(n) && isFinite(n)) return n;
       }
 
       if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
@@ -210,17 +227,30 @@ export default function MathLearningPlatform() {
     return null;
   };
 
+  const parseFinalAnswerValue = (finalAnswer: string): number | null => {
+    if (!finalAnswer?.trim()) return null;
+    const trimmed = finalAnswer.trim();
+    const parts = trimmed.split("=").map((p) => p.trim());
+    for (const part of parts) {
+      const value = normalizeAnswer(part);
+      if (value !== null) return value;
+    }
+    return normalizeAnswer(trimmed);
+  };
+
   const checkAnswer = (studentAnswer: string): boolean => {
     if (!studentAnswer.trim()) return false;
 
     let correctValue: number | null = null;
 
-    if (equationData?.substitutedEquation) {
+    if (stepData?.finalAnswer?.trim()) {
+      correctValue = parseFinalAnswerValue(stepData.finalAnswer);
+    }
+    if (correctValue === null && equationData?.substitutedEquation) {
       correctValue = extractAnswerFromEquation(
         equationData.substitutedEquation,
       );
     }
-
     if (correctValue === null && problem) {
       const answerMatch = problem.match(
         /(?:answer|result|solution|equals?|is)\s*:?\s*([0-9]+\.?[0-9]*)/i,
@@ -240,8 +270,12 @@ export default function MathLearningPlatform() {
       return false;
     }
 
-    const tolerance = 0.01;
-    const isCorrect = Math.abs(studentValue - correctValue) < tolerance;
+    const tolerance = 0.02;
+    const relTolerance = 1e-6;
+    const diff = Math.abs(studentValue - correctValue);
+    const isCorrect =
+      diff < tolerance ||
+      diff < Math.max(Math.abs(studentValue), Math.abs(correctValue)) * relTolerance;
 
     setCorrectAnswer(correctValue.toString());
     return isCorrect;
@@ -550,6 +584,18 @@ export default function MathLearningPlatform() {
     console.log(" Steps :", completedSteps);
   }, [completedSteps])
 
+  const normalizeForCheckpointCompare = (s: string): string =>
+    (s || "").trim().replace(/\s+/g, " ");
+  const compactForCheckpointCompare = (s: string): string =>
+    normalizeForCheckpointCompare(s).replace(/\s+/g, "");
+  const isExactCheckpointMatch = (expectedCheckpoint: string, studentInput: string): boolean => {
+    if (!expectedCheckpoint?.trim() || !studentInput?.trim()) return false;
+    const a = normalizeForCheckpointCompare(expectedCheckpoint);
+    const b = normalizeForCheckpointCompare(studentInput);
+    if (a === b) return true;
+    return compactForCheckpointCompare(expectedCheckpoint) === compactForCheckpointCompare(studentInput);
+  };
+
   const submitStepAttempt = async () => {
     if (!stepData || !stepData.steps?.length) return;
     if (currentStepIndex >= stepData.steps.length) return;
@@ -562,7 +608,43 @@ export default function MathLearningPlatform() {
     setStepFeedbackCorrect(null);
     setPracticeFeedback(null);
 
+    if (isExactCheckpointMatch(step.checkpoint, practiceAnswer)) {
+      const timestamp = new Date().toLocaleString();
+      setCompletedSteps((prevStep) => {
+        const nextStep: CompletedStep[] = [];
+        let i = 0;
+        for (i; i < prevStep.length; i++) {
+          const prevRecord = prevStep[i];
+          if (prevRecord.stepIndex !== currentStepIndex) nextStep.push(prevRecord);
+        }
+        nextStep.push({
+          stepIndex: currentStepIndex,
+          instruction: step.instruction,
+          correct: practiceAnswer,
+          response: "Correct.",
+          timestamp,
+        });
+        return nextStep.sort((i, j) => (i.stepIndex < j.stepIndex ? -1 : i.stepIndex > j.stepIndex ? 1 : 0));
+      });
+      setStepFeedbackCorrect(true);
+      setStepFeedbackText("Correct.");
+      setLastCorrectStepIndex(currentStepIndex);
+      setPracticeAnswer("");
+      setPracticeFeedback("submitted");
+      const next = currentStepIndex + 1;
+      if (next >= stepData.steps.length) {
+        setCurrentStepIndex(stepData.steps.length);
+        if (stepData.finalAnswer) {
+          setStepFeedbackText(`Correct. Finished. Final answer: ${stepData.finalAnswer}`);
+        }
+      } else {
+        setCurrentStepIndex(next);
+      }
+      return;
+    }
+
     try {
+      const studentInput = normalizeStepInput(practiceAnswer);
       const resp = await fetch(`${API_BASE_URL}/api/openai/grade-step`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -571,7 +653,7 @@ export default function MathLearningPlatform() {
           targetVariable: stepData.targetVariable,
           stepInstruction: step.instruction,
           expectedCheckpoint: step.checkpoint,
-          studentInput: practiceAnswer,
+          studentInput,
         }),
       });
 
@@ -852,47 +934,47 @@ export default function MathLearningPlatform() {
 
           {equationData && (
             <>
-              <ThemedView style={styles.equationContainer}>
-                <ThemedText type="subtitle" style={styles.equationLabel}>
-                  Extracted Equation:
-                </ThemedText>
-
-                <ThemedView style={styles.equationBox}>
-                  <ThemedText style={styles.equationTitle}>
-                    Template:
+              {false && (
+                <ThemedView style={styles.equationContainer}>
+                  <ThemedText type="subtitle" style={styles.equationLabel}>
+                    Extracted Equation:
                   </ThemedText>
-                  <LaTeXRenderer equation={equationData.equation} />
-                </ThemedView>
-
-                {equationData.variables &&
-                  equationData.variables.length > 0 && (
-                    <ThemedView style={styles.variablesBox}>
-                      <ThemedText style={styles.equationTitle}>
-                        Variables:
-                      </ThemedText>
-                      {equationData.variables.map((variable, index) => (
-                        <div key={index} style={styles.variableItem}>
-                          <ThemedText>{variable}</ThemedText>
-                        </div>
-                      ))}
-                    </ThemedView>
-                  )}
-
-                {equationData.substitutedEquation && (
                   <ThemedView style={styles.equationBox}>
                     <ThemedText style={styles.equationTitle}>
-                      With Values:
+                      Template:
                     </ThemedText>
-                    <LaTeXRenderer
-                      equation={equationData.substitutedEquation}
-                    />
+                    <LaTeXRenderer equation={equationData.equation} />
                   </ThemedView>
-                )}
-              </ThemedView>
-
-              <button style={styles.saveButton} onClick={saveEquationAsJSON}>
-                <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
-              </button>
+                  {equationData.variables &&
+                    equationData.variables.length > 0 && (
+                      <ThemedView style={styles.variablesBox}>
+                        <ThemedText style={styles.equationTitle}>
+                          Variables:
+                        </ThemedText>
+                        {equationData.variables.map((variable, index) => (
+                          <div key={index} style={styles.variableItem}>
+                            <ThemedText>{variable}</ThemedText>
+                          </div>
+                        ))}
+                      </ThemedView>
+                    )}
+                  {equationData.substitutedEquation && (
+                    <ThemedView style={styles.equationBox}>
+                      <ThemedText style={styles.equationTitle}>
+                        With Values:
+                      </ThemedText>
+                      <LaTeXRenderer
+                        equation={equationData.substitutedEquation}
+                      />
+                    </ThemedView>
+                  )}
+                </ThemedView>
+              )}
+              {false && (
+                <button style={styles.saveButton} onClick={saveEquationAsJSON}>
+                  <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
+                </button>
+              )}
             </>
           )}
 
@@ -911,7 +993,21 @@ export default function MathLearningPlatform() {
               ) : stepData && stepData.steps.length > 0 ? (
                 <>
                   <ThemedText style={styles.stepMeta}>
-                    Step {Math.min(currentStepIndex + 1, stepData.steps.length)} of {stepData.steps.length}
+                    {currentStepIndex >= stepData.steps.length ? (
+                      <>Completed: {stepData.steps.length} of {stepData.steps.length} steps</>
+                    ) : (
+                      <>
+                        Step{" "}
+                        {Math.max(
+                          1,
+                          Math.min(
+                            currentStepIndex + 1,
+                            stepData.steps.length,
+                          ),
+                        )}{" "}
+                        of {stepData.steps.length}
+                      </>
+                    )}
                   </ThemedText>
 
                   {currentStepIndex >= stepData.steps.length && (
@@ -1039,6 +1135,38 @@ export default function MathLearningPlatform() {
           {/* Continue answer box for the student ^^^ */}
 
           <ThemedView style={styles.answerSection}>
+            {(() => {
+              const allStepsComplete = !!(stepData?.steps?.length) && currentStepIndex >= stepData.steps.length;
+              const finalAnswerCorrect = answerCorrect === true && !stepData?.steps?.length;
+              const problemDone = allStepsComplete || finalAnswerCorrect;
+              if (problemDone) {
+                return (
+                  <>
+                    <ThemedText style={styles.feedbackCorrect}>
+                      Correct! Great job!
+                    </ThemedText>
+                    <button
+                      type="button"
+                      onClick={() => fetchMathProblem()}
+                      style={styles.nextProblemButton}
+                      disabled={loading}
+                    >
+                      <ThemedText style={styles.buttonText}>
+                        {loading ? "Loading..." : "Next Problem"}
+                      </ThemedText>
+                    </button>
+                  </>
+                );
+              }
+              return null;
+            })()}
+            {(() => {
+              const allStepsComplete = !!(stepData?.steps?.length) && currentStepIndex >= stepData.steps.length;
+              const finalAnswerCorrect = answerCorrect === true && !stepData?.steps?.length;
+              const problemDone = allStepsComplete || finalAnswerCorrect;
+              return !problemDone;
+            })() && (
+            <>
             <ThemedText style={styles.answerLabel}>
               {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
                 ? "Your Step Result:"
@@ -1253,6 +1381,8 @@ export default function MathLearningPlatform() {
                     : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
                 </ThemedText>
               )}
+            </>
+            )}
           </ThemedView>
         </>
       ) : (
@@ -1267,18 +1397,17 @@ export default function MathLearningPlatform() {
     </div>
 
     <div style={styles.practiceRightGap}>
-      
       {pinVisibility && (
-      <Pin 
-        pinned={pinned} 
-        clear={() => setPinned(null)} 
-        dismiss={() => {
-          setPinned(null);
-          setPinVisibility(false);
-        }}
-        
-        />
-
+        <div style={styles.pinResizeWrapper}>
+          <Pin
+            pinned={pinned}
+            clear={() => setPinned(null)}
+            dismiss={() => {
+              setPinned(null);
+              setPinVisibility(false);
+            }}
+          />
+        </div>
       )}
 
 
@@ -2099,6 +2228,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
+  nextProblemButton: {
+    marginTop: 16,
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#6B46C1",
+    borderRadius: 8,
+    padding: "16px 24px",
+    border: "1px solid rgba(167, 139, 250, 0.45)",
+    cursor: "pointer",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  },
   cancelAnswerButton: {
     flex: 1,
     backgroundColor: "#ffffff",
@@ -2397,7 +2537,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: 220,
     height: 220,
   },
-
+  pinResizeWrapper: {
+    resize: "both",
+    overflow: "auto",
+    minWidth: 260,
+    minHeight: 220,
+    width: 320,
+    height: 380,
+    maxWidth: 560,
+    maxHeight: "85vh",
+    boxSizing: "border-box",
+  },
   pinMain: {
     minWidth: 0,
   },
