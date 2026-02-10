@@ -584,6 +584,18 @@ export default function MathLearningPlatform() {
     console.log(" Steps :", completedSteps);
   }, [completedSteps])
 
+  const normalizeForCheckpointCompare = (s: string): string =>
+    (s || "").trim().replace(/\s+/g, " ");
+  const compactForCheckpointCompare = (s: string): string =>
+    normalizeForCheckpointCompare(s).replace(/\s+/g, "");
+  const isExactCheckpointMatch = (expectedCheckpoint: string, studentInput: string): boolean => {
+    if (!expectedCheckpoint?.trim() || !studentInput?.trim()) return false;
+    const a = normalizeForCheckpointCompare(expectedCheckpoint);
+    const b = normalizeForCheckpointCompare(studentInput);
+    if (a === b) return true;
+    return compactForCheckpointCompare(expectedCheckpoint) === compactForCheckpointCompare(studentInput);
+  };
+
   const submitStepAttempt = async () => {
     if (!stepData || !stepData.steps?.length) return;
     if (currentStepIndex >= stepData.steps.length) return;
@@ -595,6 +607,41 @@ export default function MathLearningPlatform() {
     setStepFeedbackText(null);
     setStepFeedbackCorrect(null);
     setPracticeFeedback(null);
+
+    if (isExactCheckpointMatch(step.checkpoint, practiceAnswer)) {
+      const timestamp = new Date().toLocaleString();
+      setCompletedSteps((prevStep) => {
+        const nextStep: CompletedStep[] = [];
+        let i = 0;
+        for (i; i < prevStep.length; i++) {
+          const prevRecord = prevStep[i];
+          if (prevRecord.stepIndex !== currentStepIndex) nextStep.push(prevRecord);
+        }
+        nextStep.push({
+          stepIndex: currentStepIndex,
+          instruction: step.instruction,
+          correct: practiceAnswer,
+          response: "Correct.",
+          timestamp,
+        });
+        return nextStep.sort((i, j) => (i.stepIndex < j.stepIndex ? -1 : i.stepIndex > j.stepIndex ? 1 : 0));
+      });
+      setStepFeedbackCorrect(true);
+      setStepFeedbackText("Correct.");
+      setLastCorrectStepIndex(currentStepIndex);
+      setPracticeAnswer("");
+      setPracticeFeedback("submitted");
+      const next = currentStepIndex + 1;
+      if (next >= stepData.steps.length) {
+        setCurrentStepIndex(stepData.steps.length);
+        if (stepData.finalAnswer) {
+          setStepFeedbackText(`Correct. Finished. Final answer: ${stepData.finalAnswer}`);
+        }
+      } else {
+        setCurrentStepIndex(next);
+      }
+      return;
+    }
 
     try {
       const studentInput = normalizeStepInput(practiceAnswer);
@@ -887,47 +934,47 @@ export default function MathLearningPlatform() {
 
           {equationData && (
             <>
-              <ThemedView style={styles.equationContainer}>
-                <ThemedText type="subtitle" style={styles.equationLabel}>
-                  Extracted Equation:
-                </ThemedText>
-
-                <ThemedView style={styles.equationBox}>
-                  <ThemedText style={styles.equationTitle}>
-                    Template:
+              {false && (
+                <ThemedView style={styles.equationContainer}>
+                  <ThemedText type="subtitle" style={styles.equationLabel}>
+                    Extracted Equation:
                   </ThemedText>
-                  <LaTeXRenderer equation={equationData.equation} />
-                </ThemedView>
-
-                {equationData.variables &&
-                  equationData.variables.length > 0 && (
-                    <ThemedView style={styles.variablesBox}>
-                      <ThemedText style={styles.equationTitle}>
-                        Variables:
-                      </ThemedText>
-                      {equationData.variables.map((variable, index) => (
-                        <div key={index} style={styles.variableItem}>
-                          <ThemedText>{variable}</ThemedText>
-                        </div>
-                      ))}
-                    </ThemedView>
-                  )}
-
-                {equationData.substitutedEquation && (
                   <ThemedView style={styles.equationBox}>
                     <ThemedText style={styles.equationTitle}>
-                      With Values:
+                      Template:
                     </ThemedText>
-                    <LaTeXRenderer
-                      equation={equationData.substitutedEquation}
-                    />
+                    <LaTeXRenderer equation={equationData.equation} />
                   </ThemedView>
-                )}
-              </ThemedView>
-
-              <button style={styles.saveButton} onClick={saveEquationAsJSON}>
-                <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
-              </button>
+                  {equationData.variables &&
+                    equationData.variables.length > 0 && (
+                      <ThemedView style={styles.variablesBox}>
+                        <ThemedText style={styles.equationTitle}>
+                          Variables:
+                        </ThemedText>
+                        {equationData.variables.map((variable, index) => (
+                          <div key={index} style={styles.variableItem}>
+                            <ThemedText>{variable}</ThemedText>
+                          </div>
+                        ))}
+                      </ThemedView>
+                    )}
+                  {equationData.substitutedEquation && (
+                    <ThemedView style={styles.equationBox}>
+                      <ThemedText style={styles.equationTitle}>
+                        With Values:
+                      </ThemedText>
+                      <LaTeXRenderer
+                        equation={equationData.substitutedEquation}
+                      />
+                    </ThemedView>
+                  )}
+                </ThemedView>
+              )}
+              {false && (
+                <button style={styles.saveButton} onClick={saveEquationAsJSON}>
+                  <ThemedText style={styles.buttonText}>Save as JSON</ThemedText>
+                </button>
+              )}
             </>
           )}
 
@@ -1088,6 +1135,38 @@ export default function MathLearningPlatform() {
           {/* Continue answer box for the student ^^^ */}
 
           <ThemedView style={styles.answerSection}>
+            {(() => {
+              const allStepsComplete = !!(stepData?.steps?.length) && currentStepIndex >= stepData.steps.length;
+              const finalAnswerCorrect = answerCorrect === true && !stepData?.steps?.length;
+              const problemDone = allStepsComplete || finalAnswerCorrect;
+              if (problemDone) {
+                return (
+                  <>
+                    <ThemedText style={styles.feedbackCorrect}>
+                      Correct! Great job!
+                    </ThemedText>
+                    <button
+                      type="button"
+                      onClick={() => fetchMathProblem()}
+                      style={styles.nextProblemButton}
+                      disabled={loading}
+                    >
+                      <ThemedText style={styles.buttonText}>
+                        {loading ? "Loading..." : "Next Problem"}
+                      </ThemedText>
+                    </button>
+                  </>
+                );
+              }
+              return null;
+            })()}
+            {(() => {
+              const allStepsComplete = !!(stepData?.steps?.length) && currentStepIndex >= stepData.steps.length;
+              const finalAnswerCorrect = answerCorrect === true && !stepData?.steps?.length;
+              const problemDone = allStepsComplete || finalAnswerCorrect;
+              return !problemDone;
+            })() && (
+            <>
             <ThemedText style={styles.answerLabel}>
               {stepData && stepData.steps.length > 0 && currentStepIndex < stepData.steps.length
                 ? "Your Step Result:"
@@ -1302,6 +1381,8 @@ export default function MathLearningPlatform() {
                     : `✗ Incorrect. ${correctAnswer ? `The correct answer is ${correctAnswer}.` : "Please try again."}`}
                 </ThemedText>
               )}
+            </>
+            )}
           </ThemedView>
         </>
       ) : (
@@ -1316,18 +1397,17 @@ export default function MathLearningPlatform() {
     </div>
 
     <div style={styles.practiceRightGap}>
-      
       {pinVisibility && (
-      <Pin 
-        pinned={pinned} 
-        clear={() => setPinned(null)} 
-        dismiss={() => {
-          setPinned(null);
-          setPinVisibility(false);
-        }}
-        
-        />
-
+        <div style={styles.pinResizeWrapper}>
+          <Pin
+            pinned={pinned}
+            clear={() => setPinned(null)}
+            dismiss={() => {
+              setPinned(null);
+              setPinVisibility(false);
+            }}
+          />
+        </div>
       )}
 
 
@@ -2148,6 +2228,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     cursor: "pointer",
   },
+  nextProblemButton: {
+    marginTop: 16,
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#6B46C1",
+    borderRadius: 8,
+    padding: "16px 24px",
+    border: "1px solid rgba(167, 139, 250, 0.45)",
+    cursor: "pointer",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  },
   cancelAnswerButton: {
     flex: 1,
     backgroundColor: "#ffffff",
@@ -2446,7 +2537,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: 220,
     height: 220,
   },
-
+  pinResizeWrapper: {
+    resize: "both",
+    overflow: "auto",
+    minWidth: 260,
+    minHeight: 220,
+    width: 320,
+    height: 380,
+    maxWidth: 560,
+    maxHeight: "85vh",
+    boxSizing: "border-box",
+  },
   pinMain: {
     minWidth: 0,
   },
