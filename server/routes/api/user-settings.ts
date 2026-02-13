@@ -3,10 +3,14 @@ import { IncomingMessage, ServerResponse } from "http";
 import ToggleLogs, { LogLevel } from "../../utilities/toggle_logs";
 import UrlUtils from "../../utilities/url_utils";
 
-const endpoint = "/api/email-enabled";
-type EmailEnabledBody = {
+const endpoint = "/api/user-settings";
+type UserSettingsBody = {
     user: string;
-    value: boolean;
+    displayName: string;
+    emailEnabled: boolean;
+    darkMode: boolean;
+    notificationsEnabled: boolean;
+    locationEnabled: boolean;
 }
 
 export function handles(req: IncomingMessage): boolean {
@@ -19,31 +23,21 @@ export async function handle(
     res: ServerResponse,
 ): Promise<void> {
     if (req.url?.startsWith(endpoint)) {
-        ToggleLogs.log('Handling email enabled request..', LogLevel.INFO);
+        ToggleLogs.log('Handling user settings request..', LogLevel.INFO);
 
         if (req.method == 'GET') {
-            //Check for required user parameter
-            if(UrlUtils.getQueryParams(req).user == undefined){
-                UrlUtils.sendJson(res, 400, {
-                    error: 'Bad Request',
-                    message: 'Missing required "user" query parameter.',
-                });
-                return;
-            }
-
             // Not implemented yet
             UrlUtils.sendJson(res, 200, { 
-                value: true
+                enabled: true
             });
         } else if (req.method == 'POST') {
             // Check required body fields
-            const body = (await UrlUtils.getBody(req)) as EmailEnabledBody;
+            const body = (await UrlUtils.getBody(req)) as UserSettingsBody;
             if (
                 !body ||
                 typeof body !== 'object' ||
                 body.user == undefined ||
-                typeof body.user !== 'string' ||
-                typeof body.value !== 'boolean'
+                typeof body.user !== 'string'
             ) {
                 UrlUtils.sendJson(res, 400, {
                     error: 'Bad Request',
@@ -58,7 +52,7 @@ export async function handle(
         } else {
             UrlUtils.sendJson(res, 405, {
                 error: 'Method Not Allowed',
-                message: 'Only GET and POST requests are allowed for this endpoint.',
+                message: 'Only POST requests are allowed for this endpoint.',
             });
             return;
         }
